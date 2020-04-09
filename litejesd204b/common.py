@@ -53,7 +53,7 @@ class JESD204BSettings():
 
             kwargs are taken as field names for initialization
 
-            parameters like L, M, K are zero based, add 1 to get the count
+            parameters counting items like L, M, K are handled naturally (>= 1)
         '''
         self.fchk_over_octets = fchk_over_octets
         self.octets = bytearray(JESD204BSettings.LEN)
