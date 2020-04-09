@@ -20,17 +20,16 @@ class LiteJESD204BTransportTX(Module):
     """
     def __init__(self, jesd_settings, converter_data_width):
         # Compute parameters
-        samples_per_clock = converter_data_width//jesd_settings.phy.n
-        samples_per_frame = jesd_settings.transport.s
-        lane_data_width   = (samples_per_clock*
-                             jesd_settings.phy.np*
-                             jesd_settings.nconverters)//jesd_settings.nlanes
+        samples_per_clock = converter_data_width//jesd_settings.N
+        samples_per_frame = jesd_settings.S
+        lane_data_width   = (samples_per_clock * jesd_settings.NP *
+                             jesd_settings.M) // jesd_settings.L
 
         # Endpoints
         self.sink = Record([("converter"+str(i), converter_data_width)
-            for i in range(jesd_settings.nconverters)])
+            for i in range(jesd_settings.M)])
         self.source = Record([("lane"+str(i), lane_data_width)
-            for i in range(jesd_settings.nlanes)])
+            for i in range(jesd_settings.L)])
 
         # # #
 
@@ -39,13 +38,13 @@ class LiteJESD204BTransportTX(Module):
         while current_sample < samples_per_clock:
             # Frame's samples
             frame_samples = []
-            for j in range(jesd_settings.nconverters):
+            for j in range(jesd_settings.M):
                 for i in range(samples_per_frame):
                     converter_data = getattr(self.sink, "converter"+str(j))
-                    sample = Signal(jesd_settings.phy.n)
+                    sample = Signal(jesd_settings.N)
                     self.comb += sample.eq(
-                        converter_data[(current_sample+i)*jesd_settings.phy.n:
-                        (current_sample+i+1)*jesd_settings.phy.n])
+                        converter_data[(current_sample+i)*jesd_settings.N:
+                        (current_sample+i+1)*jesd_settings.N])
                     frame_samples.append(sample)
 
             # Frame's words
@@ -68,7 +67,7 @@ class LiteJESD204BTransportTX(Module):
                 frame_octets.append(octet)
 
             # Lanes' octets for a frame
-            for i in range(jesd_settings.nlanes):
+            for i in range(jesd_settings.L):
                 frame_lane_octets = frame_octets[
                     i*jesd_settings.octets_per_lane:
                     (i+1)*jesd_settings.octets_per_lane]
@@ -92,17 +91,17 @@ class LiteJESD204BTransportRX(Module):
     """
     def __init__(self, jesd_settings, converter_data_width):
         # Compute parameters
-        samples_per_clock = converter_data_width//jesd_settings.phy.n
-        samples_per_frame = jesd_settings.transport.s
+        samples_per_clock = converter_data_width//jesd_settings.N
+        samples_per_frame = jesd_settings.S
         lane_data_width   = (samples_per_clock*
-                             jesd_settings.phy.np*
-                             jesd_settings.nconverters)//jesd_settings.nlanes
+                             jesd_settings.Np*
+                             jesd_settings.M)//jesd_settings.L
 
         # Endpoints
         self.sink = Record([("lane"+str(i), lane_data_width)
-            for i in range(jesd_settings.nlanes)])
+            for i in range(jesd_settings.L)])
         self.source = Record([("converter"+str(i), converter_data_width)
-            for i in range(jesd_settings.nconverters)])
+            for i in range(jesd_settings.M)])
 
         # # #
 
@@ -111,7 +110,7 @@ class LiteJESD204BTransportRX(Module):
         while current_sample < samples_per_clock:
             # Frame's octets
             frame_octets = []
-            for i in range(jesd_settings.nlanes):
+            for i in range(jesd_settings.L):
                 frame_lane_octets = []
                 lane_data = getattr(self.sink, "lane"+str(i))
                 for j in range(jesd_settings.octets_per_lane):
@@ -128,7 +127,7 @@ class LiteJESD204BTransportRX(Module):
 
             # Frame's words
             frame_words = []
-            for j in range(jesd_settings.nconverters):
+            for j in range(jesd_settings.M):
                 for i in range(samples_per_frame):
                     word = Signal(jesd_settings.nibbles_per_word*4)
                     for k in range(jesd_settings.nibbles_per_word):
@@ -139,12 +138,12 @@ class LiteJESD204BTransportRX(Module):
             frame_samples = frame_words # no control bits
 
             # Converters' samples for a frame
-            for j in range(jesd_settings.nconverters):
+            for j in range(jesd_settings.M):
                 for i in range(samples_per_frame):
                     converter_data = getattr(self.source, "converter"+str(j))
                     self.comb += converter_data[
-                        (current_sample+i)*jesd_settings.phy.n:
-                        (current_sample+i+1)*jesd_settings.phy.n].eq(frame_samples.pop())
+                        (current_sample+i)*jesd_settings.N:
+                        (current_sample+i+1)*jesd_settings.N].eq(frame_samples.pop())
 
             current_sample += samples_per_frame
             current_octet  += jesd_settings.octets_per_lane
@@ -157,20 +156,20 @@ class LiteJESD204BSTPLGenerator(Module):
     """
     def __init__(self, jesd_settings, converter_data_width, random=True):
         self.source = Record([("converter"+str(i), converter_data_width)
-            for i in range(jesd_settings.nconverters)])
+            for i in range(jesd_settings.M)])
         self.errors = Signal(32) # unused
 
         # # #
 
-        samples_per_clock = converter_data_width//jesd_settings.phy.n
-        samples_per_frame = jesd_settings.transport.s
+        samples_per_clock = converter_data_width//jesd_settings.N
+        samples_per_frame = jesd_settings.S
 
-        for i in range(jesd_settings.nconverters):
+        for i in range(jesd_settings.M):
             converter = getattr(self.source, "converter"+str(i))
             for j in range(samples_per_clock):
                 data = seed_to_data((i << 8) | j%samples_per_frame, random)
-                self.comb += converter[j*jesd_settings.phy.n:
-                                       (j+1)*jesd_settings.phy.n].eq(data)
+                self.comb += converter[j*jesd_settings.N:
+                                       (j+1)*jesd_settings.N].eq(data)
 
 # STPL Checker (RX) --------------------------------------------------------------------------------
 
@@ -180,20 +179,20 @@ class LiteJESD204BSTPLChecker(Module):
     """
     def __init__(self, jesd_settings, converter_data_width, random=True):
         self.sink = Record([("converter"+str(i), converter_data_width)
-            for i in range(jesd_settings.nconverters)])
+            for i in range(jesd_settings.M)])
         self.errors = Signal(32)
 
         # # #
 
-        samples_per_clock = converter_data_width//jesd_settings.phy.n
-        samples_per_frame = jesd_settings.transport.s
+        samples_per_clock = converter_data_width//jesd_settings.N
+        samples_per_frame = jesd_settings.S
 
-        for i in range(jesd_settings.nconverters):
+        for i in range(jesd_settings.M):
             converter = getattr(self.sink, "converter"+str(i))
             for j in range(samples_per_clock):
                 data = seed_to_data((i << 8) | j%samples_per_frame, random)
                 self.sync += [
-                    If(converter[j*jesd_settings.phy.n:(j+1)*jesd_settings.phy.n] != data,
+                    If(converter[j*jesd_settings.N:(j+1)*jesd_settings.N] != data,
                         self.errors.eq(self.errors + 1)
                     )
                 ]

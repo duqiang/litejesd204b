@@ -313,7 +313,7 @@ class ILAS:
         octets = []
         for i in range(4):
             if with_counter:
-                multiframe = [i*octets_per_multiframe + j
+                multiframe = [(i * octets_per_multiframe + j) & 0xFF
                     for j in range(octets_per_multiframe)]
             else:
                 multiframe = [0]*octets_per_multiframe
@@ -534,16 +534,17 @@ class LiteJESD204BLinkTX(Module):
         self.submodules.cgs = cgs
 
         # Initial Lane Alignment Sequence
+        jesd_settings.LID = n
         ilas = ILASGenerator(data_width,
             jesd_settings.octets_per_lane,
-            jesd_settings.transport.k,
-            jesd_settings.get_configuration_data(n))
+            jesd_settings.K,
+            jesd_settings.octets)
         self.submodules.ilas = ilas
 
         # Datapath
         datapath = LiteJESD204BLinkTXDapath(data_width,
             jesd_settings.octets_per_frame,
-            jesd_settings.transport.k)
+            jesd_settings.K)
         self.submodules.datapath = datapath
         self.comb += datapath.sink.eq(sink)
 
@@ -641,14 +642,14 @@ class LiteJESD204BLinkRX(Module):
         # Initial Lane Alignment Sequence
         ilas = ILASChecker(data_width,
             jesd_settings.octets_per_lane,
-            jesd_settings.transport.k,
+            jesd_settings.K,
             jesd_settings.get_configuration_data(n))
         self.submodules.ilas = ilas
 
         # Datapath
         datapath = LiteJESD204BLinkRXDapath(data_width,
             jesd_settings.octets_per_frame,
-            jesd_settings.transport.k)
+            jesd_settings.K)
         self.submodules.datapath = datapath
         self.comb += source.eq(datapath.source)
 

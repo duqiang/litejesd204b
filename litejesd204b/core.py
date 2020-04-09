@@ -31,7 +31,7 @@ class LiteJESD204BTXCDC(Module):
         use_ebuf = (len(phy.sink.data) == 32)
 
         if use_ebuf:
-            ebuf = ElasticBuffer(len(phy.sink.data) + len(phy.source.ctrl), 4, "jesd", phy_cd)
+            ebuf = ElasticBuffer(len(phy.sink.data) + len(phy.sink.ctrl), 4, "jesd", phy_cd)
             self.submodules.ebuf = ebuf
             self.comb += [
                 sink.ready.eq(1),
@@ -133,7 +133,7 @@ class LiteJESD204BCoreTX(Module):
         self.stpl_enable = Signal()
 
         self.sink = Record([("converter"+str(i), converter_data_width)
-            for i in range(jesd_settings.nconverters)])
+            for i in range(jesd_settings.M)])
 
         # # #
 
@@ -161,16 +161,21 @@ class LiteJESD204BCoreTX(Module):
 
         # Links
         self.links = links = []
-        for n, (phy, lane) in enumerate(zip(phys, transport.source.flatten())):
+        lanes = transport.source.flatten()
+        for n, (phy, lane) in enumerate(zip(phys, lanes)):
             phy_name = "jesd_phy{}".format(n if not hasattr(phy, "n") else phy.n)
-            phy_cd   = phy_name + "_tx"
+            setattr(self.submodules, phy_name, phy)
+            if len(lanes) > 1:
+                phy_cd = phy_name + "_tx"
+            else:
+                phy_cd = "tx"
 
             cdc = LiteJESD204BTXCDC(phy, phy_cd)
             setattr(self.submodules, "cdc"+str(n), cdc)
 
             link = LiteJESD204BLinkTX(32, jesd_settings, n)
             link = ClockDomainsRenamer("jesd")(link)
-            self.submodules += link
+            setattr(self.submodules, 'link{:d}'.format(n), link)
             links.append(link)
             self.comb += [
                 link.reset.eq(~self.enable),
@@ -226,7 +231,7 @@ class LiteJESD204BCoreRX(Module):
         self.stpl_enable = Signal()
 
         self.source = Record([("converter"+str(i), converter_data_width)
-            for i in range(jesd_settings.nconverters)])
+            for i in range(jesd_settings.M)])
 
         # # #
 
@@ -326,7 +331,7 @@ class LiteJESD204BCoreRX(Module):
 # Core Control ----------------------------------------------------------------------------------
 
 class LiteJESD204BCoreControl(Module, AutoCSR):
-    def __init__(self, core, sys_clk_freq):
+    def __init__(self, core):
         self.control = CSRStorage(fields=[
             CSRField("enable", size=1, values=[
                 ("``0b0``", "JESD core disabled."),
