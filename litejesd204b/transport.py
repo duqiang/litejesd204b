@@ -15,18 +15,17 @@ class LiteJESD204BTransportTX(Module):
     """Transport TX layer
     inputs:
     - jesd_settings:        JESD204B settings
-    - converter_data_width: Converters' data width
     cf section 5.1.3
     """
-    def __init__(self, jesd_settings, converter_data_width):
+    def __init__(self, jesd_settings):
         # Compute parameters
-        samples_per_clock = converter_data_width//jesd_settings.N
+        samples_per_clock = jesd_settings.converter_data_width//jesd_settings.N
         samples_per_frame = jesd_settings.S
         lane_data_width   = (samples_per_clock * jesd_settings.NP *
                              jesd_settings.M) // jesd_settings.L
 
         # Endpoints
-        self.sink = Record([("converter"+str(i), converter_data_width)
+        self.sink = Record([("converter"+str(i), jesd_settings.converter_data_width)
             for i in range(jesd_settings.M)])
         self.source = Record([("lane"+str(i), lane_data_width)
             for i in range(jesd_settings.L)])
@@ -85,13 +84,12 @@ class LiteJESD204BTransportTX(Module):
 class LiteJESD204BTransportRX(Module):
     """Transport RX layer
     inputs:
-    - jesd_settings:        JESD204B settings
-    - converter_data_width: Converters' data width
+    - jesd_settings:        JESD204BSettings object
     cf section 5.1.3
     """
-    def __init__(self, jesd_settings, converter_data_width):
+    def __init__(self, jesd_settings):
         # Compute parameters
-        samples_per_clock = converter_data_width//jesd_settings.N
+        samples_per_clock = jesd_settings.converter_data_width//jesd_settings.N
         samples_per_frame = jesd_settings.S
         lane_data_width   = (samples_per_clock*
                              jesd_settings.Np*
@@ -100,7 +98,7 @@ class LiteJESD204BTransportRX(Module):
         # Endpoints
         self.sink = Record([("lane"+str(i), lane_data_width)
             for i in range(jesd_settings.L)])
-        self.source = Record([("converter"+str(i), converter_data_width)
+        self.source = Record([("converter"+str(i), jesd_settings.converter_data_width)
             for i in range(jesd_settings.M)])
 
         # # #
@@ -154,14 +152,14 @@ class LiteJESD204BSTPLGenerator(Module):
     """Simple Transport Layer Pattern Generator
     cf section 5.1.6.2
     """
-    def __init__(self, jesd_settings, converter_data_width, random=True):
-        self.source = Record([("converter"+str(i), converter_data_width)
+    def __init__(self, jesd_settings, random=True):
+        self.source = Record([("converter"+str(i), jesd_settings.converter_data_width)
             for i in range(jesd_settings.M)])
         self.errors = Signal(32) # unused
 
         # # #
 
-        samples_per_clock = converter_data_width//jesd_settings.N
+        samples_per_clock = jesd_settings.converter_data_width//jesd_settings.N
         samples_per_frame = jesd_settings.S
 
         for i in range(jesd_settings.M):
@@ -177,14 +175,14 @@ class LiteJESD204BSTPLChecker(Module):
     """Simple Transport Layer Pattern Checker
     cf section 5.1.6.2
     """
-    def __init__(self, jesd_settings, converter_data_width, random=True):
-        self.sink = Record([("converter"+str(i), converter_data_width)
+    def __init__(self, jesd_settings, random=True):
+        self.sink = Record([("converter"+str(i), jesd_settings.converter_data_width)
             for i in range(jesd_settings.M)])
         self.errors = Signal(32)
 
         # # #
 
-        samples_per_clock = converter_data_width//jesd_settings.N
+        samples_per_clock = jesd_settings.converter_data_width//jesd_settings.N
         samples_per_frame = jesd_settings.S
 
         for i in range(jesd_settings.M):

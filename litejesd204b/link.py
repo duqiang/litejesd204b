@@ -100,27 +100,27 @@ class Descrambler(Scrambler):
 class Framer(Module):
     """Framer
     """
-    def __init__(self, data_width, octets_per_frame, frames_per_multiframe):
+    def __init__(self, data_width, jesd_settings):
         self.sink    = sink   = Record([("data", data_width)])
         self.source  = source = Record(link_layout(data_width))
         self.latency = 0
 
         # # #
 
-        frame_width           = octets_per_frame*8
+        frame_width           = jesd_settings.octets_per_lane*8
         frames_per_clock      = data_width//frame_width
-        clocks_per_multiframe = frames_per_multiframe//frames_per_clock
+        clocks_per_multiframe = jesd_settings.K//frames_per_clock
 
         # at least a frame per clock
         assert frame_width <= data_width
         # multiple number of frame per clock
         assert data_width%frame_width == 0
         # multiframes aligned on clock
-        assert frames_per_multiframe%frames_per_clock == 0
+        assert jesd_settings.K%frames_per_clock == 0
 
         frame_last = 0
         for i in range(data_width//8):
-            if (i+1)%octets_per_frame == 0:
+            if (i+1)%jesd_settings.octets_per_lane == 0:
                 frame_last |= (1<<i)
 
         counter = Signal(8)
@@ -143,23 +143,23 @@ class Framer(Module):
 class Deframer(Module):
     """Deframer
     """
-    def __init__(self, data_width, octets_per_frame, frames_per_multiframe):
+    def __init__(self, data_width, jesd_settings):
         self.sink    = sink   = Record(link_layout(data_width))
         self.source  = source = Record([("data", data_width)])
         self.latency = 0
 
         # # #
 
-        frame_width           = octets_per_frame*8
+        frame_width           = jesd_settings.octets_per_lane*8
         frames_per_clock      = data_width//frame_width
-        clocks_per_multiframe = frames_per_multiframe//frames_per_clock
+        clocks_per_multiframe = jesd_settings.K//frames_per_clock
 
         # at least a frame per clock
         assert frame_width <= data_width
         # multiple number of frame per clock
         assert data_width%frame_width == 0
         # multiframes aligned on clock
-        assert frames_per_multiframe%frames_per_clock == 0
+        assert jesd_settings.K%frames_per_clock == 0
 
         # FIXME: start on multiframe boundary?
         self.comb += [
@@ -300,15 +300,11 @@ class ILAS:
     """Initial Lane Alignment Sequence
     cf section 5.3.3.5
     """
-    def __init__(self, data_width,
-                 octets_per_frame,
-                 frames_per_multiframe,
-                 configuration_data,
-                 with_counter=True):
+    def __init__(self, data_width, jesd_settings, with_counter=True):
 
         # compute ILAS's octets
 
-        octets_per_multiframe = octets_per_frame*frames_per_multiframe
+        octets_per_multiframe = jesd_settings.octets_per_lane * jesd_settings.K
 
         octets = []
         for i in range(4):
@@ -321,7 +317,7 @@ class ILAS:
             multiframe[-1] = Control(control_characters["A"])
             if i == 1:
                 multiframe[1] = Control(control_characters["Q"])
-                multiframe[2:2+len(configuration_data)] = configuration_data
+                multiframe[2:2+len(jesd_settings.octets)] = jesd_settings.octets
             octets += multiframe
 
         # pack ILAS's octets in a lookup table
@@ -343,8 +339,8 @@ class ILAS:
             data_words.append(data_word)
             ctrl_words.append(ctrl_word)
 
-        assert len(data_words) == (octets_per_frame*
-                                        frames_per_multiframe*
+        assert len(data_words) == (jesd_settings.octets_per_lane*
+                                        jesd_settings.K*
                                         4//octets_per_clock)
 
 @ResetInserter()
@@ -352,23 +348,14 @@ class ILASGenerator(ILAS, Module):
     """Initial Lane Alignment Sequence Generator
     cf section 5.3.3.5
     """
-    def __init__(self, data_width,
-                 octets_per_frame,
-                 frames_per_multiframe,
-                 configuration_data,
-                 with_counter=True):
+    def __init__(self, data_width, jesd_settings, with_counter=True):
         self.source = source = Record(link_layout(data_width))
         self.done = Signal()
 
         # # #
 
         # compute ILAS's data/ctrl words
-        ILAS.__init__(self,
-            data_width,
-            octets_per_frame,
-            frames_per_multiframe,
-            configuration_data,
-            with_counter)
+        ILAS.__init__(self, data_width, jesd_settings, with_counter)
 
         data_lut = Memory(data_width, len(self.data_words), init=self.data_words)
         data_port = data_lut.get_port(async_read=True)
@@ -421,11 +408,7 @@ class ILASChecker(ILAS, Module):
     """Initial Lane Alignment Sequence Checker
     cf section 5.3.3.5
     """
-    def __init__(self, data_width,
-                 octets_per_frame,
-                 frames_per_multiframe,
-                 configuration_data,
-                 with_counter=True):
+    def __init__(self, data_width, jesd_settings, with_counter=True):
         self.sink  = sink  = Record(link_layout(data_width))
         self.done  = done  = Signal()
         self.valid = valid = Signal()
@@ -438,12 +421,7 @@ class ILASChecker(ILAS, Module):
         self.comb += start.sink.eq(sink)
 
         # compute ILAS's data/ctrl words
-        ILAS.__init__(self,
-            data_width,
-            octets_per_frame,
-            frames_per_multiframe,
-            configuration_data,
-            with_counter)
+        ILAS.__init__(self, jesd_settings, with_counter)
 
         data_lut  = Memory(data_width, len(self.data_words), init=self.data_words)
         data_port = data_lut.get_port(async_read=True)
@@ -483,7 +461,7 @@ class ILASChecker(ILAS, Module):
 # Link TX ------------------------------------------------------------------------------------------
 
 class LiteJESD204BLinkTXDapath(Module):
-    def __init__(self, data_width, octets_per_frame, frames_per_multiframe):
+    def __init__(self, data_width, jesd_settings):
         self.sink   = Record([("data", data_width)])
         self.source = Record(link_layout(data_width))
 
@@ -494,9 +472,7 @@ class LiteJESD204BLinkTXDapath(Module):
         self.submodules.scrambler = scrambler
 
         # Framing
-        framer = Framer(data_width,
-            octets_per_frame,
-            frames_per_multiframe)
+        framer = Framer(data_width, jesd_settings)
         self.submodules.framer = framer
 
         # Alignment
@@ -535,16 +511,11 @@ class LiteJESD204BLinkTX(Module):
 
         # Initial Lane Alignment Sequence
         jesd_settings.LID = n
-        ilas = ILASGenerator(data_width,
-            jesd_settings.octets_per_lane,
-            jesd_settings.K,
-            jesd_settings.octets)
+        ilas = ILASGenerator(data_width, jesd_settings)
         self.submodules.ilas = ilas
 
         # Datapath
-        datapath = LiteJESD204BLinkTXDapath(data_width,
-            jesd_settings.octets_per_frame,
-            jesd_settings.K)
+        datapath = LiteJESD204BLinkTXDapath(data_width, jesd_settings)
         self.submodules.datapath = datapath
         self.comb += datapath.sink.eq(sink)
 

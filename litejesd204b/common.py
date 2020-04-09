@@ -43,7 +43,9 @@ class JESD204BSettings():
     }
     LEN = 14
 
-    def __init__(self, fchk_over_octets=False, **kwargs):
+    def __init__(
+        self, converter_data_width=16, fchk_over_octets=False, **kwargs
+    ):
         '''
             Holds all JESD parameter fields in a byte-array according to spec.
 
@@ -51,10 +53,16 @@ class JESD204BSettings():
                 true = calc. checksum as sum over all octets (Analog Devices)
                 false = sum over all fields (JESD standard)
 
+            converter_data_width:
+                application layer data-stream width of one converter [bits]
+
             kwargs are taken as field names for initialization
+
+            field names can also be get / set as class attributes
 
             parameters counting items like L, M, K are handled naturally (>= 1)
         '''
+        self.converter_data_width = converter_data_width
         self.fchk_over_octets = fchk_over_octets
         self.octets = bytearray(JESD204BSettings.LEN)
         self.set_field('JESDV', 1)

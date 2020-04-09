@@ -124,7 +124,7 @@ class LMFC(Module):
 # Core TX ------------------------------------------------------------------------------------------
 
 class LiteJESD204BCoreTX(Module):
-    def __init__(self, phys, jesd_settings, converter_data_width):
+    def __init__(self, phys, jesd_settings):
         self.enable  = Signal()
         self.jsync   = Signal()
         self.jref    = Signal()
@@ -132,18 +132,18 @@ class LiteJESD204BCoreTX(Module):
 
         self.stpl_enable = Signal()
 
-        self.sink = Record([("converter"+str(i), converter_data_width)
+        self.sink = Record([("converter"+str(i), jesd_settings.converter_data_width)
             for i in range(jesd_settings.M)])
 
         # # #
 
         # Transport layer
-        transport = LiteJESD204BTransportTX(jesd_settings, converter_data_width)
+        transport = LiteJESD204BTransportTX(jesd_settings)
         transport = ClockDomainsRenamer("jesd")(transport)
         self.submodules.transport = transport
 
         # STPL
-        stpl = LiteJESD204BSTPLGenerator(jesd_settings, converter_data_width)
+        stpl = LiteJESD204BSTPLGenerator(jesd_settings)
         stpl = ClockDomainsRenamer("jesd")(stpl)
         self.submodules.stpl = stpl
         self.comb += \
@@ -222,7 +222,7 @@ class LiteJESD204BCoreTX(Module):
 # Core RX ------------------------------------------------------------------------------------------
 
 class LiteJESD204BCoreRX(Module):
-    def __init__(self, phys, jesd_settings, converter_data_width, ilas_check=True):
+    def __init__(self, phys, jesd_settings, ilas_check=True):
         self.enable  = Signal()
         self.jsync   = Signal()
         self.jref    = Signal()
@@ -230,18 +230,18 @@ class LiteJESD204BCoreRX(Module):
 
         self.stpl_enable = Signal()
 
-        self.source = Record([("converter"+str(i), converter_data_width)
+        self.source = Record([("converter"+str(i), jesd_settings.converter_data_width)
             for i in range(jesd_settings.M)])
 
         # # #
 
         # Transport Layer
-        transport = LiteJESD204BTransportRX(jesd_settings, converter_data_width)
+        transport = LiteJESD204BTransportRX(jesd_settings, jesd_settings.converter_data_width)
         transport = ClockDomainsRenamer("jesd")(transport)
         self.submodules.transport = transport
 
         # STPL
-        stpl = LiteJESD204BSTPLChecker(jesd_settings, converter_data_width)
+        stpl = LiteJESD204BSTPLChecker(jesd_settings, jesd_settings.converter_data_width)
         stpl = ClockDomainsRenamer("jesd")(stpl)
         self.submodules.stpl = stpl
         self.comb += \
