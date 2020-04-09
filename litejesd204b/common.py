@@ -67,9 +67,13 @@ class JESD204BSettings():
         if self.fchk_over_octets:
             val = sum(self.octets[:11])
         else:
+            # The checksum shall be calculated based on the 21 fields (not
+            # including the FCHK field) contained within the link configuration
+            # octets, and all bits not belonging to one of the 21 fields shall
+            # be ignored when calculating the checksum.
             val = 0
             for name in JESD204BSettings.FIELDS:
-                if name in ('RES1', 'RES2', 'FCHK'):
+                if name == 'FCHK':
                     continue
                 val += self.get_field(name)
         self.set_field('FCHK', val & 0xFF)
