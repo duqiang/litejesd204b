@@ -17,29 +17,29 @@ control_characters = {
 class JESD204BSettings():
     ''' Manage all JESD related configuration settings '''
     FIELDS = {
-        # fld_name:  [octet index, bit offset, field width, is zero based count]
-        "DID":       [0,  0, 8, False], # device id
-        "BID":       [1,  0, 4, False], # bank id
-        "ADJCNT":    [1,  4, 4, False], # N/A (subclass 2 only)
-        "LID":       [2,  0, 5, False], # lane id
-        "PHADJ":     [2,  5, 1, False], # N/A (subclass 2 only)
-        "ADJDIR":    [2,  6, 1, False], # N/A (subclass 2 only)
-        "L":         [3,  0, 5, True],
-        "SCR":       [3,  7, 1, False], # scrambling enable
-        "F":         [4,  0, 8, True],
-        "K":         [5,  0, 8, True],
-        "M":         [6,  0, 8, True],
-        "N":         [7,  0, 5, True],
-        "CS":        [7,  6, 2, False],
-        "NP":        [8,  0, 5, True],
-        "SUBCLASSV": [8,  5, 3, False], # device subclass version
-        "S":         [9,  0, 5, True],
-        "JESDV":     [9,  5, 3, False], # jesd204 version
-        "CF":        [10, 0, 5, False],
-        "HD":        [10, 7, 1, False],
-        "RES1":      [11, 0, 8, False],
-        "RES2":      [12, 0, 8, False],
-        "FCHK":      [13, 0, 8, False]
+        # fld_name:  [octet index, bit offset, field width, isZeroBased]
+        "ADJCNT":    [1,  4, 4, False],  # Number of adjustment resolution steps to adjust DAC LMFC. Subclass 2 only.
+        "ADJDIR":    [2,  6, 1, False],  # Direction to adjust DAC LMFC 0: Advance, 1: Delay. Subclass 2 only.
+        "BID":       [1,  0, 4, False],  # Bank ID
+        "CF":        [10, 0, 5, False],  # No. of control words per frame duration per link
+        "CS":        [7,  6, 2, False],  # No. of control bits / sample
+        "DID":       [0,  0, 8, False],  # Device ID
+        "F":         [4,  0, 8, True ],  # No. of octets / frame
+        "HD":        [10, 7, 1, False],  # High density format
+        "JESDV":     [9,  5, 3, False],  # Jesd204 version
+        "K":         [5,  0, 8, True ],  # No. of frames / multiframe
+        "L":         [3,  0, 5, True ],  # No. of lanes
+        "LID":       [2,  0, 5, False],  # Lane ID
+        "M":         [6,  0, 8, True ],  # No. of converters
+        "N":         [7,  0, 5, True ],  # Converter resolution
+        "NP":        [8,  0, 5, True ],  # Total no. of bits / sample
+        "PHADJ":     [2,  5, 1, False],  # Phase adjustment request to DAC Subclass 2 only
+        "S":         [9,  0, 5, True ],  # No. of samples per converter per frame cycle
+        "SCR":       [3,  7, 1, False],  # Scrambling enable
+        "SUBCLASSV": [8,  5, 3, False],  # Device subclass version
+        "RES1":      [11, 0, 8, False],  # Reserved field 1
+        "RES2":      [12, 0, 8, False],  # Reserved field 2
+        "FCHK":      [13, 0, 8, False]   # Checksum
     }
     LEN = 14
 
@@ -65,6 +65,7 @@ class JESD204BSettings():
         self.converter_data_width = converter_data_width
         self.fchk_over_octets = fchk_over_octets
         self.octets = bytearray(JESD204BSettings.LEN)
+        self.set_field('SCR', 1)
         self.set_field('JESDV', 1)
         self.set_field('SUBCLASSV', 1)
         for k, v in kwargs.items():

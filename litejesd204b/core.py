@@ -347,6 +347,7 @@ class LiteJESD204BCoreControl(Module, AutoCSR):
             CSRField("sync_n",    size=1, offset=1, description="JESD ``SYNC~`` status."),
             CSRField("skew_fifo", size=8, offset=8, description="JESD Skew FIFO level (``RX only``)."),
         ])
+        self.jsync_errors = CSRStatus(32)
         self.stpl_enable = CSRStorage(fields=[
             CSRField("enable", size=1, offset=0, values=[
                 ("``0b0``", "STPL test disabled."),
@@ -362,6 +363,16 @@ class LiteJESD204BCoreControl(Module, AutoCSR):
 
         # # #
 
+        # Count jsync negative edges (errors)
+        jsync_errors = Signal(32)
+        jsync_d = Signal()
+        self.sync.jesd += [
+            jsync_d.eq(core.jsync),
+            If(jsync_d & ~core.jsync,
+                jsync_errors.eq(jsync_errors + 1)
+            )
+        ]
+
         self.specials += [
             MultiReg(self.control.fields.enable,      core.enable,      "jesd"),
             MultiReg(self.stpl_enable.storage,        core.stpl_enable, "jesd"),
@@ -369,6 +380,7 @@ class LiteJESD204BCoreControl(Module, AutoCSR):
             MultiReg(core.stpl.errors, self.stpl_errors.status,   "sys"),
             MultiReg(core.ready,       self.status.fields.ready,  "sys"),
             MultiReg(core.jsync,       self.status.fields.sync_n, "sys"),
+            MultiReg(jsync_errors,     self.jsync_errors.status,  "sys"),
         ]
         if hasattr(core, "skew_fifos"):
             self.specials += MultiReg(core.skew_fifos[0].level, self.status.fields.skew_fifo)
