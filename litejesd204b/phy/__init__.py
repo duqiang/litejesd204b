@@ -1,8 +1,8 @@
 from migen import *
 
-from jesd204b.common import *
-from jesd204b.phy.gtx import GTXTransmitter
-from jesd204b.phy.gth import GTHTransmitter
+from litejesd204b.common import *
+from litejesd204b.phy.gtx import GTXTransmitter
+from litejesd204b.phy.gth import GTHTransmitter
 
 from litex.soc.interconnect import stream
 from litex.soc.interconnect.csr import *

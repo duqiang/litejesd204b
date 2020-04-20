@@ -4,8 +4,8 @@ from migen.genlib.resetsync import AsyncResetSynchronizer
 from litex.soc.interconnect.csr import *
 from litex.soc.cores.code_8b10b import Encoder
 
-from jesd204b.phy.gtx_init import GTXInit
-from jesd204b.phy.prbs import *
+from litejesd204b.phy.gtx_init import GTXInit
+from litejesd204b.phy.prbs import *
 
 
 class GTXChannelPLL(Module):
