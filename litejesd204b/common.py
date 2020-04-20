@@ -121,6 +121,7 @@ class JESD204BSettings():
     def __getattr__(self, name):
         if name in JESD204BSettings.FIELDS:
             return self.get_field(name)
+        raise AttributeError
 
     def __setattr__(self, name, value):
         if name in JESD204BSettings.FIELDS:
