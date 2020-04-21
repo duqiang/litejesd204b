@@ -100,29 +100,44 @@ class Descrambler(Scrambler):
 class Framer(Module):
     """Framer
     """
-    def __init__(self, data_width, jesd_settings):
-        self.sink    = sink   = Record([("data", data_width)])
-        self.source  = source = Record(link_layout(data_width))
+    def __init__(self, dw_bits, jesd_settings):
+        '''
+        dw_bits:
+            number of bits the transceiver puts out per jesd clock cycle.
+            this needs to contain an integer number of complete frames.
+
+            !!! partial frames per jesd clock cycle are not supported !!!
+        '''
+        self.sink    = sink   = Record([("data", dw_bits)])
+        self.source  = source = Record(link_layout(dw_bits))
         self.latency = 0
 
         # # #
 
-        frame_width           = jesd_settings.octets_per_lane*8
-        frames_per_clock      = data_width//frame_width
-        clocks_per_multiframe = jesd_settings.K//frames_per_clock
+        dw_bytes = dw_bits // 8  # most likely = 4 for gtx / gth phy
+        frames_per_clock = dw_bytes / jesd_settings.F  # 1, 2 or 4
 
-        # at least a frame per clock
-        assert frame_width <= data_width
-        # multiple number of frame per clock
-        assert data_width%frame_width == 0
-        # multiframes aligned on clock
-        assert jesd_settings.K%frames_per_clock == 0
+        if frames_per_clock < 1:
+            raise ValueError('F must be <= {}'.format(dw_bytes))
+
+        if (frames_per_clock % 1.0) > 0:
+            raise ValueError('Cannot have {} frames / clock. F = {} is illegal.'.format(frames_per_clock, jesd_settings.F))
+            # That means F = 3 is not supported for dw_bits = 32 bit.
+
+        frames_per_clock = int(frames_per_clock)
+
+        if (jesd_settings.K % frames_per_clock) > 0:
+            raise ValueError('multiframes must be aligned with jesd_clock')
+
+        clocks_per_multiframe = jesd_settings.K // frames_per_clock
 
         frame_last = 0
-        for i in range(data_width//8):
-            if (i+1)%jesd_settings.octets_per_lane == 0:
+        for i in range(dw_bits//8):
+            if (i+1)%jesd_settings.F == 0:
+                # which byte of `data` is the last one of a jesd frame
                 frame_last |= (1<<i)
 
+        # count jesd clock cycles to find end of multiframe
         counter = Signal(8)
         self.sync += \
             If(source.multiframe_last != 0,
@@ -135,7 +150,9 @@ class Framer(Module):
             source.data.eq(sink.data),
             source.frame_last.eq(frame_last),
             If(counter == (clocks_per_multiframe-1),
-                source.multiframe_last.eq(1<<(data_width//8)-1)
+                # last byte of a multiframe is always last byte of `data`,
+                # so set the highest bit of `multiframe_last`
+                source.multiframe_last.eq(1<<(dw_bits//8)-1)
             )
         ]
 
@@ -150,9 +167,9 @@ class Deframer(Module):
 
         # # #
 
-        frame_width           = jesd_settings.octets_per_lane*8
+        frame_width           = jesd_settings.F * 8
         frames_per_clock      = data_width//frame_width
-        clocks_per_multiframe = jesd_settings.K//frames_per_clock
+        # clocks_per_multiframe = jesd_settings.K//frames_per_clock
 
         # at least a frame per clock
         assert frame_width <= data_width
@@ -304,7 +321,7 @@ class ILAS:
 
         # compute ILAS's octets
 
-        octets_per_multiframe = jesd_settings.octets_per_lane * jesd_settings.K
+        octets_per_multiframe = jesd_settings.F * jesd_settings.K
 
         octets = []
         for i in range(4):
@@ -339,9 +356,9 @@ class ILAS:
             data_words.append(data_word)
             ctrl_words.append(ctrl_word)
 
-        assert len(data_words) == (jesd_settings.octets_per_lane*
-                                        jesd_settings.K*
-                                        4//octets_per_clock)
+        assert len(data_words) == (
+            jesd_settings.F * jesd_settings.K * 4 // octets_per_clock
+        )
 
 @ResetInserter()
 class ILASGenerator(ILAS, Module):
@@ -511,6 +528,7 @@ class LiteJESD204BLinkTX(Module):
 
         # Initial Lane Alignment Sequence
         jesd_settings.LID = n
+        jesd_settings.calc_fchk()
         ilas = ILASGenerator(data_width, jesd_settings)
         self.submodules.ilas = ilas
 
@@ -556,7 +574,7 @@ class LiteJESD204BLinkTX(Module):
 # Link RX ------------------------------------------------------------------------------------------
 
 class LiteJESD204BLinkRXDapath(Module):
-    def __init__(self, data_width, octets_per_frame, frames_per_multiframe):
+    def __init__(self, data_width, jesd_settings):
         self.sink   = Record(link_layout(data_width))
         self.source = Record([("data", data_width)])
 
@@ -567,9 +585,7 @@ class LiteJESD204BLinkRXDapath(Module):
         self.submodules.align_replacer = align_replacer
 
         # Deframing
-        deframer = Deframer(data_width,
-            octets_per_frame,
-            frames_per_multiframe)
+        deframer = Deframer(data_width, jesd_settings)
         self.submodules.deframer = deframer
 
         # Descrambling
@@ -612,15 +628,13 @@ class LiteJESD204BLinkRX(Module):
 
         # Initial Lane Alignment Sequence
         ilas = ILASChecker(data_width,
-            jesd_settings.octets_per_lane,
+            jesd_settings.F,
             jesd_settings.K,
             jesd_settings.get_configuration_data(n))
         self.submodules.ilas = ilas
 
         # Datapath
-        datapath = LiteJESD204BLinkRXDapath(data_width,
-            jesd_settings.octets_per_frame,
-            jesd_settings.K)
+        datapath = LiteJESD204BLinkRXDapath(data_width, jesd_settings)
         self.submodules.datapath = datapath
         self.comb += source.eq(datapath.source)
 

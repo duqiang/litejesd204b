@@ -72,7 +72,7 @@ class JESD204BSettings():
             self.set_field(k, v)
 
     def calc_fchk(self):
-        ''' called on each field value change '''
+        ''' needs to be called manually after all values have been set '''
         if self.fchk_over_octets:
             val = sum(self.octets[:11])
         else:
@@ -87,14 +87,18 @@ class JESD204BSettings():
                 val += self.get_field(name)
         self.set_field('FCHK', val & 0xFF)
 
-        # compute internal settings
-        self.nibbles_per_word = ceil(self.NP // 4)
-        self.octets_per_frame = (self.S * self.nibbles_per_word) // 2
-        self.octets_per_lane = (self.octets_per_frame * self.M) // self.L
-        self.lmfc_cycles = int(self.octets_per_frame * self.K // 4)
+        # --------------------
+        #  Sanity checks
+        # --------------------
+        F_temp = (self.M * self.S * self.NP) / 8 / self.L
+        if self.F != F_temp:
+            print(self)
+            raise ValueError('F = {} is inconsistent! Should be {}'.format(
+                self.F, F_temp
+            ))
 
     def set_field(self, name, val, encode=True):
-#         print('setting:', name, val)
+        # print('setting:', name, val)
         index, offset, width, is_zb = JESD204BSettings.FIELDS[name]
         if encode and is_zb:
             val -= 1
@@ -107,8 +111,6 @@ class JESD204BSettings():
         mask = (2**width - 1) << offset
         self.octets[index] &= ~mask
         self.octets[index] |= val << offset
-        if name != 'FCHK':
-            self.calc_fchk()
 
     def get_field(self, name, decode=True):
         ''' decode: when true return actual 1 based count values '''

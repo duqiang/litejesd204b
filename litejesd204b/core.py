@@ -99,14 +99,18 @@ class LiteJESD204BRXCDC(Module):
 # Local Multiframe Clock ---------------------------------------------------------------------------
 
 class LMFC(Module):
-    def __init__(self, lmfc_cycles, load=0):
-        load = (lmfc_cycles + load)%lmfc_cycles
+    def __init__(self, data_width, jesd_settings, load=0):
+        # jesd clock cycles / multiframe
+        lmfc_cycles = int(jesd_settings.F * jesd_settings.K * 8 // data_width)
+        load = load % lmfc_cycles
         assert load >= 0
         self.load  = Signal(max=lmfc_cycles, reset=load)
         self.jref  = Signal()
         self.count = Signal(max=lmfc_cycles, reset_less=True)
         self.zero  = Signal(reset_less=True)
 
+        # TODO understand what happens if lmfc_cycles is not a power of 2 ???
+        print('lmfc_cycles', lmfc_cycles, 2**len(self.count))
         # # #
 
         _jref   = Signal(reset_less=True)
@@ -115,8 +119,10 @@ class LMFC(Module):
             _jref.eq(self.jref),
             _jref_d.eq(_jref),
             If(_jref & ~_jref_d,
+                # reset count on posedge jref
                 self.count.eq(self.load)
             ).Else(
+                # count jesd clock cycles
                 self.count.eq(self.count + 1)
             )
         ]
@@ -155,7 +161,7 @@ class LiteJESD204BCoreTX(Module):
             )
 
         # LMFC
-        lmfc = LMFC(jesd_settings.lmfc_cycles, load=(1 + 4)) # jref + ebuf latency
+        lmfc = LMFC(32, jesd_settings, load=(1 + 4)) # jref + ebuf latency
         lmfc = ClockDomainsRenamer("jesd")(lmfc)
         self.submodules.lmfc = lmfc
         self.sync.jesd += lmfc.jref.eq(self.jref)
@@ -253,7 +259,7 @@ class LiteJESD204BCoreRX(Module):
             )
 
         # LMFC
-        lmfc = LMFC(jesd_settings.lmfc_cycles, load=-(1 + 4)) # jref + ebuf latency
+        lmfc = LMFC(32, jesd_settings, load=-(1 + 4)) # jref + ebuf latency
         lmfc = ClockDomainsRenamer("jesd")(lmfc)
         self.submodules.lmfc = lmfc
         self.sync.jesd += lmfc.jref.eq(self.jref)
