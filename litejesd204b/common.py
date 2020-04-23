@@ -1,3 +1,4 @@
+# This file is Copyright (c) 2020 Michael Betz <michibetz@gmail.com>
 # This file is Copyright (c) 2016-2019 Florent Kermarrec <florent@enjoy-digital.fr>
 # License: BSD
 
@@ -64,6 +65,7 @@ class JESD204BSettings():
             parameters counting items like L, M, K are handled naturally (>= 1)
         '''
         self.link_data_width = link_data_width
+        self.frames_per_clock = None
         self.fchk_over_octets = fchk_over_octets
         self.octets = bytearray(JESD204BSettings.LEN)
         self.set_field('SCR', 1)
@@ -100,6 +102,9 @@ class JESD204BSettings():
             ))
         if self.F not in (1, 2, 4):
             raise ValueError('Only F = 1, 2 or 4 is supported right now')
+
+        # How many jesd frames are processed in one clock cycle
+        self.frames_per_clock = self.link_data_width // 8 // self.F
 
     def set_field(self, name, val, encode=True):
         # print('setting:', name, val)
@@ -147,4 +152,6 @@ class JESD204BSettings():
             s += '{:>10s}: {:3d} '.format(name, self.get_field(name))
             if ((i + 1) % 4) == 0:
                 s += '\n  '
+        s += '\n  {:>10s}: {:3d} '.format('[ LINK DW', self.link_data_width)
+        s += '{:>10s}: {:3d} ]'.format('FR / CLK', self.frames_per_clock)
         return s

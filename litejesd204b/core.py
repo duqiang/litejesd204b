@@ -139,7 +139,8 @@ class LiteJESD204BCoreTX(Module):
 
         self.stpl_enable = Signal()
 
-        self.sink = Record([("converter"+str(i), jesd_settings.N * jesd_settings.S)
+        cw = jesd_settings.frames_per_clock * jesd_settings.S * jesd_settings.N
+        self.sink = Record([("converter"+str(i), cw)
             for i in range(jesd_settings.M)])
 
         # # #
@@ -180,7 +181,7 @@ class LiteJESD204BCoreTX(Module):
             cdc = LiteJESD204BTXCDC(phy, phy_cd)
             setattr(self.submodules, "cdc"+str(n), cdc)
 
-            link = LiteJESD204BLinkTX(32, jesd_settings, n)
+            link = LiteJESD204BLinkTX(jesd_settings, n)
             link = ClockDomainsRenamer("jesd")(link)
             setattr(self.submodules, 'link{:d}'.format(n), link)
             links.append(link)

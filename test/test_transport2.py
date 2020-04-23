@@ -1,3 +1,4 @@
+# This file is Copyright (c) 2020 Michael Betz <michibetz@gmail.com>
 # This file is Copyright (c) 2016-2019 Florent Kermarrec <florent@enjoy-digital.fr>
 # License: BSD
 
@@ -85,9 +86,6 @@ class TestTransport(unittest.TestCase):
             except ValueError:
                 print('skipping mode', m)
                 continue
-            print('\n----------------')
-            print(' mode', m)
-            print('----------------')
             print(settings)
 
             reference, output = self.transport_tx_test(settings)

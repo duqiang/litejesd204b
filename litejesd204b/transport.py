@@ -17,9 +17,7 @@ class LiteJESD204BTransportTX(Module):
         - jesd_settings:        JESD204B settings
         cf section 5.1.3
         """
-        frames_per_clock = \
-            jesd_settings.link_data_width // 8 // jesd_settings.F
-        samples_per_clock = jesd_settings.S * frames_per_clock
+        samples_per_clock = jesd_settings.S * jesd_settings.frames_per_clock
 
         # width of the application layer interface providing the sample data
         # for one converter
@@ -91,14 +89,11 @@ class LiteJESD204BTransportRX(Module):
     """
     def __init__(self, jesd_settings):
         # Compute parameters
-        converter_data_width = jesd_settings.N * jesd_settings.S
-        samples_per_clock = converter_data_width//jesd_settings.N
-        lane_data_width   = (samples_per_clock*
-                             jesd_settings.Np*
-                             jesd_settings.M)//jesd_settings.L
+        samples_per_clock = jesd_settings.S * jesd_settings.frames_per_clock
+        converter_data_width = jesd_settings.N * samples_per_clock
 
         # Endpoints
-        self.sink = Record([("lane"+str(i), lane_data_width)
+        self.sink = Record([("lane"+str(i), jesd_settings.link_data_width)
             for i in range(jesd_settings.L)])
         self.source = Record([("converter"+str(i), converter_data_width)
             for i in range(jesd_settings.M)])
@@ -156,14 +151,14 @@ class LiteJESD204BSTPLGenerator(Module):
     cf section 5.1.6.2
     """
     def __init__(self, jesd_settings, random=True):
-        converter_data_width = jesd_settings.N * jesd_settings.S
+        samples_per_clock = jesd_settings.S * jesd_settings.frames_per_clock
+        converter_data_width = jesd_settings.N * samples_per_clock
+
         self.source = Record([("converter"+str(i), converter_data_width)
             for i in range(jesd_settings.M)])
         self.errors = Signal(32) # unused
 
         # # #
-
-        samples_per_clock = converter_data_width//jesd_settings.N
 
         for i in range(jesd_settings.M):
             converter = getattr(self.source, "converter"+str(i))
@@ -179,14 +174,14 @@ class LiteJESD204BSTPLChecker(Module):
     cf section 5.1.6.2
     """
     def __init__(self, jesd_settings, random=True):
-        converter_data_width = jesd_settings.N * jesd_settings.S
+        samples_per_clock = jesd_settings.S * jesd_settings.frames_per_clock
+        converter_data_width = jesd_settings.N * samples_per_clock
+
         self.sink = Record([("converter"+str(i), converter_data_width)
             for i in range(jesd_settings.M)])
         self.errors = Signal(32)
 
         # # #
-
-        samples_per_clock = converter_data_width//jesd_settings.N
 
         for i in range(jesd_settings.M):
             converter = getattr(self.sink, "converter"+str(i))
