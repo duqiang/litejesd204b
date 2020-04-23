@@ -61,38 +61,38 @@ def long_test_pattern(nconverters, nbits, samples_per_frame, frame_per_multifram
     return samples
 
 
-def samples_to_lanes(samples_per_frame, nlanes, nconverters, nbits, samples):
+def samples_to_lanes(S, L, M, N, F, samples):
     """
     inputs:
-    - samples_per_frame: Number of samples per frame
-    - nlanes:            Number of lanes per converter
-    - nconverters:       Number of converters
-    - nbits:             Number of convertion bits
-    - samples:           Samples from converters:
-                         samples[i][j]: sample j of converter i
+    - S:        Number of samples per frame
+    - L:        Number of lanes per converter
+    - M:        Number of converters
+    - N:        Number of convertion bits
+    - F:        Number of octets per frame
+    - samples:  Samples from converters:
+                samples[i][j]: sample j of converter i
     output:
-    - lanes: Lanes' octets organized in frames
-             lanes[i][j][k]: octet k of frame j of lane i
+    - lanes:    Lanes' octets organized in frames
+                lanes[i][j][k]: octet k of frame j of lane i
 
     cf section 5.1.3
+
+    verified against all modes in AD9174 data-sheet (transport_demo.ipynb)
     """
-    assert nconverters == len(samples)
+    assert M == len(samples)
 
-    nibbles_per_word = ceil(nbits//4)
-    octets_per_frame = samples_per_frame*nibbles_per_word//2
-    octets_per_lane = octets_per_frame*nconverters//nlanes
-    assert octets_per_lane > 0
+    nibbles_per_word = ceil(N//4)
 
-    lanes = [[]]*nlanes
+    lanes = [[]]*L
     n = 0
 
     while n < len(samples[0]):
         # frame's samples
         frame_samples = []
-        for j in range(nconverters):
-            for i in range(samples_per_frame):
+        for j in range(M):
+            for i in range(S):
                 frame_samples.append(samples[j][n+i])
-        n += samples_per_frame
+        n += S
 
         # frame's words
         frame_words = frame_samples # no control bits
@@ -110,43 +110,42 @@ def samples_to_lanes(samples_per_frame, nlanes, nconverters, nbits, samples):
             frame_octets.append(octet)
 
         # lanes' octets for a frame
-        for i in range(nlanes):
-            frame_lane_octets = frame_octets[i*octets_per_lane:
-                                             (i+1)*octets_per_lane]
+        for i in range(L):
+            frame_lane_octets = frame_octets[i * F: (i + 1) * F]
             lanes[i] = lanes[i] + [frame_lane_octets]
 
     return lanes
 
 
-def lanes_to_samples(samples_per_frame, nlanes, nconverters, nbits, lanes):
+def lanes_to_samples(S, L, M, N, F, lanes):
     """
     inputs:
-    - samples_per_frame: Number of samples per frame
-    - nlanes:            Number of lanes per converter
-    - nconverters:       Number of converters
-    - nbits:             Number of convertion bits
-    - lanes:             Lanes' octets organized in frames
-                         lanes[i][j][k]: octet k of frame j of lane i
+    - S:        Number of samples per frame
+    - L:        Number of lanes per converter
+    - M:        Number of converters
+    - N:        Number of conversion bits
+    - F:        Number of octets per frame
+    - lanes:    Lanes' octets organized in frames
+                lanes[i][j][k]: octet k of frame j of lane i
     output:
-    - samples: Samples from converters:
-               samples[i][j]: sample j of converter i
+    - samples:  Samples from converters:
+                samples[i][j]: sample j of converter i
 
     cf section 5.1.3
+
+    verified against samples_to_lanes() (transport_demo.ipynb)
     """
-    assert nlanes == len(lanes)
+    assert L == len(lanes)
 
-    nibbles_per_word = ceil(nbits//4)
-    octets_per_frame = samples_per_frame*nibbles_per_word//2
-    octets_per_lane = octets_per_frame*nconverters//nlanes
-    assert octets_per_lane > 0
+    nibbles_per_word = ceil(N//4)
 
-    samples = [[]]*nconverters
+    samples = [[]]*M
     n = 0
 
     while n < len(lanes[0]):
         # frame's octets
         frame_octets = []
-        for i in range(nlanes):
+        for i in range(L):
             frame_octets = frame_octets + lanes[i][n]
         n += 1
 
@@ -159,17 +158,18 @@ def lanes_to_samples(samples_per_frame, nlanes, nconverters, nbits, lanes):
         frame_words = []
         for i in range(len(frame_nibbles)//nibbles_per_word):
             word = 0
-            for j in range(nibbles_per_word):
-                word |= (frame_nibbles[i*nibbles_per_word+j] << 4*(3-j))
+            for j in range(nibbles_per_word):  # j = 0, 1, 2
+                j_ = nibbles_per_word - 1 - j  # j_ = 2, 1, 0
+                word |= (frame_nibbles[i * nibbles_per_word + j] << (4 * j_))
             frame_words.append(word)
 
         # frame's samples
         frame_samples = frame_words # no control bits
 
         # converters' samples for a frame
-        for i in range(nconverters):
-            converter_samples = frame_samples[i*samples_per_frame:
-                                             (i+1)*samples_per_frame]
+        for i in range(M):
+            converter_samples = frame_samples[i*S:
+                                             (i+1)*S]
             samples[i] = samples[i] + converter_samples
 
     return samples
@@ -180,15 +180,17 @@ class TransportLayer:
         self.jesd_settings = jesd_settings
 
     def encode(self, samples):
-        return samples_to_lanes(self.jesd_settings.transport.s,
-                                self.jesd_settings.phy.l,
-                                self.jesd_settings.phy.m,
-                                self.jesd_settings.phy.n,
+        return samples_to_lanes(self.jesd_settings.S,
+                                self.jesd_settings.L,
+                                self.jesd_settings.M,
+                                self.jesd_settings.N,
+                                self.jesd_settings.F,
                                 samples)
 
     def decode(self, lanes):
-        return lanes_to_samples(self.jesd_settings.transport.s,
-                                self.jesd_settings.phy.l,
-                                self.jesd_settings.phy.m,
-                                self.jesd_settings.phy.n,
+        return lanes_to_samples(self.jesd_settings.S,
+                                self.jesd_settings.L,
+                                self.jesd_settings.M,
+                                self.jesd_settings.N,
+                                self.jesd_settings.F,
                                 lanes)

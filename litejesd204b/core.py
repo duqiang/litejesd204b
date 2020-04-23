@@ -139,7 +139,7 @@ class LiteJESD204BCoreTX(Module):
 
         self.stpl_enable = Signal()
 
-        self.sink = Record([("converter"+str(i), jesd_settings.converter_data_width)
+        self.sink = Record([("converter"+str(i), jesd_settings.N * jesd_settings.S)
             for i in range(jesd_settings.M)])
 
         # # #
@@ -237,18 +237,18 @@ class LiteJESD204BCoreRX(Module):
 
         self.stpl_enable = Signal()
 
-        self.source = Record([("converter"+str(i), jesd_settings.converter_data_width)
+        self.source = Record([("converter"+str(i), jesd_settings.N * jesd_settings.S)
             for i in range(jesd_settings.M)])
 
         # # #
 
         # Transport Layer
-        transport = LiteJESD204BTransportRX(jesd_settings, jesd_settings.converter_data_width)
+        transport = LiteJESD204BTransportRX(jesd_settings)
         transport = ClockDomainsRenamer("jesd")(transport)
         self.submodules.transport = transport
 
         # STPL
-        stpl = LiteJESD204BSTPLChecker(jesd_settings, jesd_settings.converter_data_width)
+        stpl = LiteJESD204BSTPLChecker(jesd_settings, jesd_settings.N * jesd_settings.S)
         stpl = ClockDomainsRenamer("jesd")(stpl)
         self.submodules.stpl = stpl
         self.comb += \

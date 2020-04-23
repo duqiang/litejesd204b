@@ -44,7 +44,7 @@ class JESD204BSettings():
     LEN = 14
 
     def __init__(
-        self, converter_data_width=16, fchk_over_octets=False, **kwargs
+        self, fchk_over_octets=False, link_data_width=32, **kwargs
     ):
         '''
             Holds all JESD parameter fields in a byte-array according to spec.
@@ -53,8 +53,9 @@ class JESD204BSettings():
                 true = calc. checksum as sum over all octets (Analog Devices)
                 false = sum over all fields (JESD standard)
 
-            converter_data_width:
-                application layer data-stream width of one converter [bits]
+            link_data_width:
+                number of bits the transceivers (gtx / gth) put out per clock
+                cycle. Without 8b10b encoding.
 
             kwargs are taken as field names for initialization
 
@@ -62,7 +63,7 @@ class JESD204BSettings():
 
             parameters counting items like L, M, K are handled naturally (>= 1)
         '''
-        self.converter_data_width = converter_data_width
+        self.link_data_width = link_data_width
         self.fchk_over_octets = fchk_over_octets
         self.octets = bytearray(JESD204BSettings.LEN)
         self.set_field('SCR', 1)
@@ -70,6 +71,7 @@ class JESD204BSettings():
         self.set_field('SUBCLASSV', 1)
         for k, v in kwargs.items():
             self.set_field(k, v)
+        self.calc_fchk()
 
     def calc_fchk(self):
         ''' needs to be called manually after all values have been set '''
@@ -96,6 +98,8 @@ class JESD204BSettings():
             raise ValueError('F = {} is inconsistent! Should be {}'.format(
                 self.F, F_temp
             ))
+        if self.F not in (1, 2, 4):
+            raise ValueError('Only F = 1, 2 or 4 is supported right now')
 
     def set_field(self, name, val, encode=True):
         # print('setting:', name, val)
@@ -135,10 +139,12 @@ class JESD204BSettings():
         s = "JESD204BSettings(): "
         for o in self.octets:
             s += '{:02x} '.format(o)
-        s += '\n'
-        for name, _ in sorted(
+        s += '\n  '
+        for i, (name, _) in enumerate(sorted(
             JESD204BSettings.FIELDS.items(),
             key=lambda x: x[1][0] * 8 + x[1][1]
-        ):
-            s += '  {:>16s}: {:3d}\n'.format(name, self.get_field(name))
+        )):
+            s += '{:>10s}: {:3d} '.format(name, self.get_field(name))
+            if ((i + 1) % 4) == 0:
+                s += '\n  '
         return s
