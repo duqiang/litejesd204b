@@ -22,6 +22,11 @@ def flatten_results(res):
         res[i] = [item for sublist in ll for item in sublist]
     return res
 
+
+def hex_str(val):
+    return ' '.join('{:02x}'.format(v) for v in val)
+
+
 class TestTransport(unittest.TestCase):
     def transport_tx_test(self, settings):
         transport = LiteJESD204BTransportTX(settings)
@@ -48,24 +53,32 @@ class TestTransport(unittest.TestCase):
                     # There might be multiple samples per clock
                     for s in range(len(converter) // settings.N):
                         temp |= (input_samples[m].pop(0)) << (settings.N * s)
-                    print('conv {:d}: {:0{:}x}'.format(m, temp, len(converter) // 4))
+                    conv_bytes = temp.to_bytes(len(converter) // 8, 'little')
+                    print('conv {:d}: {:}'.format(m, hex_str(conv_bytes)))
                     yield converter.eq(temp)
                 yield
-                print()
+                # print()
 
                 for l, (lane, _) in enumerate(dut.source.iter_flat()):
                     lane_data = (yield lane)
-                    print('lane {:d}: {:0{:}x}'.format(l, lane_data, len(lane) // 4))
                     # Need to split lane_data up into octets
-                    for i in range(len(lane) // 8):
-                        output_lanes[l].append(lane_data & 0xFF)
-                        lane_data >>= 8
+                    lane_bytes = lane_data.to_bytes(len(lane) // 8, 'little')
+                    print('lane {:d}: {:}'.format(l, hex_str(lane_bytes)))
+                    output_lanes[l].extend(lane_bytes)
                 print()
 
         run_simulation(transport, [generator(transport)])
         return reference_lanes, output_lanes
 
     def test_transport_tx(self):
+        print('--------------------------------')
+        print(' JESD transport layer test')
+        print('--------------------------------')
+        print('Specific to the supported AD9174 JESD modes.')
+        print('  `conv X:` data from application fed into LiteJESD204BTransportTX.sink')
+        print('  `lane X:` output data going to the link layer')
+        print('  data format is LSB first: <octet0> <octet1> etc.')
+        print('  data is grouped by clock cycle')
         for m in [*range(13), *range(18, 23)]:
             try:
                 settings = Ad9174Settings(m)
