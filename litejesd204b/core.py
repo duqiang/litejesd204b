@@ -126,7 +126,7 @@ class LMFC(Module):
                 self.count.eq(self.count + 1)
             )
         ]
-        self.comb += self.zero.eq(self.count == 0)
+        self.comb += self.zero.eq(_jref & ~_jref_d)  # self.count == 0)
 
 # Core TX ------------------------------------------------------------------------------------------
 
