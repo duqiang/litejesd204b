@@ -46,12 +46,12 @@ class JESD204BSettings():
     LEN = 14
 
     def __init__(
-        self, fchk_over_octets=False, LINK_DW=32, **kwargs
+        self, FCHK_OVER_OCTETS=False, LINK_DW=32, json_file=None, **kwargs
     ):
         '''
             Holds all JESD parameter fields in a byte-array according to spec.
 
-            fchk_over_octets:
+            FCHK_OVER_OCTETS:
                 true = calc. checksum as sum over all octets (Analog Devices)
                 false = sum over all fields (JESD standard)
 
@@ -64,11 +64,20 @@ class JESD204BSettings():
             field names can also be get / set as class attributes
 
             parameters counting items like L, M, K are handled naturally (>= 1)
+
+            json_file:
+                .json file to import jesd parameters from.
+                If this is given all other init parameters are ignored.
         '''
+        self.octets = bytearray(JESD204BSettings.LEN)
+
+        if json_file is not None:
+            self.import_constants(json_file)
+            return
+
         self.LINK_DW = LINK_DW
         self.FR_CLK = None
-        self.fchk_over_octets = fchk_over_octets
-        self.octets = bytearray(JESD204BSettings.LEN)
+        self.FCHK_OVER_OCTETS = FCHK_OVER_OCTETS
         self.set_field('SCR', 1)
         self.set_field('JESDV', 1)
         self.set_field('SUBCLASSV', 1)
@@ -78,7 +87,7 @@ class JESD204BSettings():
 
     def calc_fchk(self):
         ''' needs to be called manually after all values have been set '''
-        if self.fchk_over_octets:
+        if self.FCHK_OVER_OCTETS:
             val = sum(self.octets[:11])
         else:
             # The checksum shall be calculated based on the 21 fields (not
@@ -166,6 +175,7 @@ class JESD204BSettings():
             val = self.get_field(name)
             soc.add_constant('JESD_{:}'.format(name), val)
 
+        soc.add_constant('JESD_FCHK_OVER_OCTETS', self.FCHK_OVER_OCTETS)
         soc.add_constant('JESD_LINK_DW', self.LINK_DW)
         soc.add_constant('JESD_FR_CLK', self.FR_CLK)
 
@@ -177,5 +187,11 @@ class JESD204BSettings():
             if not con.startswith('jesd_'):
                     continue
             par_name = con[5:].upper()
-            print('jesd_import', par_name, val)
+            # print('jesd_import', par_name, val)
             setattr(self, par_name, val)
+
+        # re-calculate the checksum, hopefully it does not change
+        import_chk = self.FCHK
+        self.calc_fchk()
+        if import_chk != self.FCHK:
+            raise RuntimeError('imported FCHK does not match calculated one')
