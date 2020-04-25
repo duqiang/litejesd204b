@@ -13,6 +13,23 @@
 
 [![](https://travis-ci.com/enjoy-digital/litejesd204b.svg?branch=master)](https://travis-ci.com/enjoy-digital/litejesd204b) ![License](https://img.shields.io/badge/License-BSD%202--Clause-orange.svg)
 
+# Fork
+the goal is to understand the limitations of this library and make it work with an AD9174 DAC.
+
+  * `F` must be 1, 2 or 4
+  * There are limitations on `N` and `NP` such that 4 bytes are fed into the GTX every cycle (all 12 bit modes of the AD9174 are out)
+  * JREF clock must be LMFC clock divided by an integer
+
+## Testing
+[Results](https://docs.google.com/spreadsheets/d/1F6s6cVM1Lo6IOUgZoq9xm0ueGYkePZFeD96N0-kPR9o/edit?usp=sharing) of JESD modes tested so far on hardware. There are comments in the `Tested OK` column.
+
+Hardware used:
+  * AD9174-FMC-EBZ
+  * VC707
+  * External 5.12 GHz sample clock
+
+
+
 
 [> Intro
 --------

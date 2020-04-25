@@ -125,10 +125,11 @@ class LMFC(Module):
 
         _jref   = Signal(reset_less=True)
         _jref_d = Signal(reset_less=True)
+        self.is_load = Signal()
         self.sync += [
             _jref.eq(self.jref),
             _jref_d.eq(_jref),
-            If(_jref & ~_jref_d,
+            If(self.is_load,
                 # reset count on posedge jref
                 self.count.eq(self.load)
             ).Else(
@@ -136,7 +137,10 @@ class LMFC(Module):
                 self.count.eq(self.count + 1)
             )
         ]
-        self.comb += self.zero.eq(_jref & ~_jref_d)  # self.count == 0)
+        self.comb += [
+            self.zero.eq(self.count == 0),
+            self.is_load.eq(_jref & ~_jref_d)
+        ]
 
 # Core TX ------------------------------------------------------------------------------------------
 
@@ -225,6 +229,10 @@ class LiteJESD204BCoreTX(Module):
         self.specials += MultiReg(_jsync, self.jsync, "jesd")
 
     def register_jref(self, jref):
+        '''
+        watch out when setting up the hmc7044 clock dividers.
+        jref must be an integer divison of the LMFC!
+        '''
         self.jref_registered = True
         if isinstance(jref, Signal):
             self.comb += self.jref.eq(jref)

@@ -83,7 +83,7 @@ class JESD204BSettings():
         self.set_field('SUBCLASSV', 1)
         for k, v in kwargs.items():
             self.set_field(k, v)
-        self.calc_fchk()
+        # self.calc_fchk()
 
     def calc_fchk(self):
         ''' needs to be called manually after all values have been set '''

@@ -125,7 +125,9 @@ class GTXQuadPLL(Module):
                 vco_freq = refclk_freq*n/m
                 if 5.93e9 <= vco_freq <= 8e9:
                     vco_band = "lower"
-                elif 9.8e9 <= vco_freq <= 12.5e9:
+                elif 9.8e9 <= vco_freq <= 13.0e9:
+                    if vco_freq > 12.5e9:
+                      print("VCO overclocked! Max. is 12.5 Gbps.")
                     vco_band = "upper"
                 else:
                     vco_band = None
