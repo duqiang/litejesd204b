@@ -111,7 +111,7 @@ class LMFC(Module):
         `load` defines a local phase offset in jesd_clk cycles
         '''
         # jesd clock cycles / multiframe
-        lmfc_cycles = int(jesd_settings.K // jesd_settings.frames_per_clock)
+        lmfc_cycles = int(jesd_settings.K // jesd_settings.FR_CLK)
         load = load % lmfc_cycles
         assert load >= 0
         self.load  = Signal(max=lmfc_cycles, reset=load)
@@ -149,7 +149,7 @@ class LiteJESD204BCoreTX(Module):
 
         self.stpl_enable = Signal()
 
-        cw = jesd_settings.frames_per_clock * jesd_settings.S * jesd_settings.N
+        cw = jesd_settings.FR_CLK * jesd_settings.S * jesd_settings.N
         self.sink = Record([("converter"+str(i), cw)
             for i in range(jesd_settings.M)])
 

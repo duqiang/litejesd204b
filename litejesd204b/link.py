@@ -161,7 +161,7 @@ class Deframer(Module):
     """Deframer
     """
     def __init__(self, jesd_settings):
-        data_width = jesd_settings.link_data_width
+        data_width = jesd_settings.LINK_DW
         self.sink    = sink   = Record(link_layout(data_width))
         self.source  = source = Record([("data", data_width)])
         self.latency = 0
@@ -367,7 +367,7 @@ class ILASGenerator(ILAS, Module):
     cf section 5.3.3.5
     """
     def __init__(self, jesd_settings, with_counter=True):
-        data_width = jesd_settings.link_data_width
+        data_width = jesd_settings.LINK_DW
         self.source = source = Record(link_layout(data_width))
         self.done = Signal()
 
@@ -428,7 +428,7 @@ class ILASChecker(ILAS, Module):
     cf section 5.3.3.5
     """
     def __init__(self, jesd_settings, with_counter=True):
-        data_width = jesd_settings.link_data_width
+        data_width = jesd_settings.LINK_DW
 
         self.sink  = sink  = Record(link_layout(data_width))
         self.done  = done  = Signal()
@@ -483,7 +483,7 @@ class ILASChecker(ILAS, Module):
 
 class LiteJESD204BLinkTXDapath(Module):
     def __init__(self, jesd_settings):
-        data_width = jesd_settings.link_data_width
+        data_width = jesd_settings.LINK_DW
 
         self.sink   = Record([("data", data_width)])
         self.source = Record(link_layout(data_width))
@@ -523,13 +523,13 @@ class LiteJESD204BLinkTX(Module):
         self.lmfc_zero = Signal() # input
         self.ready     = Signal() # output
 
-        self.sink   = sink   = Record([("data", jesd_settings.link_data_width)])
-        self.source = source = Record(link_layout(jesd_settings.link_data_width))
+        self.sink   = sink   = Record([("data", jesd_settings.LINK_DW)])
+        self.source = source = Record(link_layout(jesd_settings.LINK_DW))
 
         # # #
 
         # Code Group Synchronization
-        cgs = CGSGenerator(jesd_settings.link_data_width)
+        cgs = CGSGenerator(jesd_settings.LINK_DW)
         self.submodules.cgs = cgs
 
         # Initial Lane Alignment Sequence
@@ -581,13 +581,13 @@ class LiteJESD204BLinkTX(Module):
 
 class LiteJESD204BLinkRXDapath(Module):
     def __init__(self, jesd_settings):
-        self.sink   = Record(link_layout(jesd_settings.link_data_width))
-        self.source = Record([("data", jesd_settings.link_data_width)])
+        self.sink   = Record(link_layout(jesd_settings.LINK_DW))
+        self.source = Record([("data", jesd_settings.LINK_DW)])
 
         # # #
 
         # Alignment
-        align_replacer = AlignReplacer(jesd_settings.link_data_width)
+        align_replacer = AlignReplacer(jesd_settings.LINK_DW)
         self.submodules.align_replacer = align_replacer
 
         # Deframing
@@ -595,7 +595,7 @@ class LiteJESD204BLinkRXDapath(Module):
         self.submodules.deframer = deframer
 
         # Descrambling
-        descrambler = Descrambler(jesd_settings.link_data_width)
+        descrambler = Descrambler(jesd_settings.LINK_DW)
         self.submodules.descrambler = descrambler
 
         # Flow
@@ -619,17 +619,17 @@ class LiteJESD204BLinkRX(Module):
         self.ready     = Signal() # output
         self.align     = Signal() # output
 
-        self.sink   = sink   = Record(link_layout(jesd_settings.link_data_width))
-        self.source = source = Record([("data", jesd_settings.link_data_width)])
+        self.sink   = sink   = Record(link_layout(jesd_settings.LINK_DW))
+        self.source = source = Record([("data", jesd_settings.LINK_DW)])
 
         # # #
 
         # Aligner
-        aligner = Aligner(jesd_settings.link_data_width)
+        aligner = Aligner(jesd_settings.LINK_DW)
         self.submodules.aligner = aligner
 
         # Code Group Synchronization
-        cgs = CGSChecker(jesd_settings.link_data_width)
+        cgs = CGSChecker(jesd_settings.LINK_DW)
         self.submodules.cgs = cgs
 
         # Initial Lane Alignment Sequence

@@ -17,7 +17,7 @@ class LiteJESD204BTransportTX(Module):
         - jesd_settings:        JESD204B settings
         cf section 5.1.3
         """
-        samples_per_clock = jesd_settings.S * jesd_settings.frames_per_clock
+        samples_per_clock = jesd_settings.S * jesd_settings.FR_CLK
 
         # width of the application layer interface providing the sample data
         # for one converter
@@ -26,7 +26,7 @@ class LiteJESD204BTransportTX(Module):
         # Endpoints
         self.sink = Record([("converter"+str(i), converter_data_width)
             for i in range(jesd_settings.M)])
-        self.source = Record([("lane"+str(i), jesd_settings.link_data_width)
+        self.source = Record([("lane"+str(i), jesd_settings.LINK_DW)
             for i in range(jesd_settings.L)])
 
         # # #
@@ -89,11 +89,11 @@ class LiteJESD204BTransportRX(Module):
     """
     def __init__(self, jesd_settings):
         # Compute parameters
-        samples_per_clock = jesd_settings.S * jesd_settings.frames_per_clock
+        samples_per_clock = jesd_settings.S * jesd_settings.FR_CLK
         converter_data_width = jesd_settings.N * samples_per_clock
 
         # Endpoints
-        self.sink = Record([("lane"+str(i), jesd_settings.link_data_width)
+        self.sink = Record([("lane"+str(i), jesd_settings.LINK_DW)
             for i in range(jesd_settings.L)])
         self.source = Record([("converter"+str(i), converter_data_width)
             for i in range(jesd_settings.M)])
@@ -151,7 +151,7 @@ class LiteJESD204BSTPLGenerator(Module):
     cf section 5.1.6.2
     """
     def __init__(self, jesd_settings, random=True):
-        samples_per_clock = jesd_settings.S * jesd_settings.frames_per_clock
+        samples_per_clock = jesd_settings.S * jesd_settings.FR_CLK
         converter_data_width = jesd_settings.N * samples_per_clock
 
         self.source = Record([("converter"+str(i), converter_data_width)
@@ -174,7 +174,7 @@ class LiteJESD204BSTPLChecker(Module):
     cf section 5.1.6.2
     """
     def __init__(self, jesd_settings, random=True):
-        samples_per_clock = jesd_settings.S * jesd_settings.frames_per_clock
+        samples_per_clock = jesd_settings.S * jesd_settings.FR_CLK
         converter_data_width = jesd_settings.N * samples_per_clock
 
         self.sink = Record([("converter"+str(i), converter_data_width)

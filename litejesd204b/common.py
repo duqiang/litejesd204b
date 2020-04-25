@@ -3,6 +3,7 @@
 # License: BSD
 
 from math import ceil
+import json
 
 # Control characters -------------------------------------------------------------------------------
 
@@ -45,7 +46,7 @@ class JESD204BSettings():
     LEN = 14
 
     def __init__(
-        self, fchk_over_octets=False, link_data_width=32, **kwargs
+        self, fchk_over_octets=False, LINK_DW=32, **kwargs
     ):
         '''
             Holds all JESD parameter fields in a byte-array according to spec.
@@ -54,7 +55,7 @@ class JESD204BSettings():
                 true = calc. checksum as sum over all octets (Analog Devices)
                 false = sum over all fields (JESD standard)
 
-            link_data_width:
+            LINK_DW:
                 number of bits the transceivers (gtx / gth) put out per clock
                 cycle. Without 8b10b encoding.
 
@@ -64,8 +65,8 @@ class JESD204BSettings():
 
             parameters counting items like L, M, K are handled naturally (>= 1)
         '''
-        self.link_data_width = link_data_width
-        self.frames_per_clock = None
+        self.LINK_DW = LINK_DW
+        self.FR_CLK = None
         self.fchk_over_octets = fchk_over_octets
         self.octets = bytearray(JESD204BSettings.LEN)
         self.set_field('SCR', 1)
@@ -104,7 +105,7 @@ class JESD204BSettings():
             raise ValueError('Only F = 1, 2 or 4 is supported right now')
 
         # How many jesd frames are processed in one clock cycle
-        self.frames_per_clock = self.link_data_width // 8 // self.F
+        self.FR_CLK = self.LINK_DW // 8 // self.F
 
     def set_field(self, name, val, encode=True):
         # print('setting:', name, val)
@@ -152,6 +153,29 @@ class JESD204BSettings():
             s += '{:>10s}: {:3d} '.format(name, self.get_field(name))
             if ((i + 1) % 4) == 0:
                 s += '\n  '
-        s += '\n  {:>10s}: {:3d} '.format('[ LINK DW', self.link_data_width)
-        s += '{:>10s}: {:3d} ]'.format('FR / CLK', self.frames_per_clock)
+        s += '\n  {:>10s}: {:3d} '.format('[ LINK_DW', self.LINK_DW)
+        s += '{:>10s}: {:3d} ]'.format('FR_CLK', self.FR_CLK)
         return s
+
+    def export_constants(self, soc):
+        '''
+        export all settings as litex constants, which will be written to
+        csr.csv / csr.json
+        '''
+        for name in JESD204BSettings.FIELDS:
+            val = self.get_field(name)
+            soc.add_constant('JESD_{:}'.format(name), val)
+
+        soc.add_constant('JESD_LINK_DW', self.LINK_DW)
+        soc.add_constant('JESD_FR_CLK', self.FR_CLK)
+
+    def import_constants(self, json_file):
+        ''' quick and dirty! assumes all class parameters are upper case '''
+        with open(json_file, 'r') as f:
+            j = json.load(f)
+        for con, val in j['constants'].items():
+            if not con.startswith('jesd_'):
+                    continue
+            par_name = con[5:].upper()
+            print('jesd_import', par_name, val)
+            setattr(self, par_name, val)
