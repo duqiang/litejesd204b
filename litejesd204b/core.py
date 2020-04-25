@@ -99,9 +99,19 @@ class LiteJESD204BRXCDC(Module):
 # Local Multiframe Clock ---------------------------------------------------------------------------
 
 class LMFC(Module):
-    def __init__(self, data_width, jesd_settings, load=0):
+    def __init__(self, jesd_settings, load=0):
+        '''
+        clock divider to derive the local multi-frame clock (LMFC)
+        from the jesd_clk.
+        It uses the jref input to periodically synchronize
+        the divider with the LMFC in the peripheral.
+        Hence jref must be a divided version of LMFC,
+        provided to FPGA and peripheral
+
+        `load` defines a local phase offset in jesd_clk cycles
+        '''
         # jesd clock cycles / multiframe
-        lmfc_cycles = int(jesd_settings.F * jesd_settings.K * 8 // data_width)
+        lmfc_cycles = int(jesd_settings.K // jesd_settings.frames_per_clock)
         load = load % lmfc_cycles
         assert load >= 0
         self.load  = Signal(max=lmfc_cycles, reset=load)
@@ -109,7 +119,7 @@ class LMFC(Module):
         self.count = Signal(max=lmfc_cycles, reset_less=True)
         self.zero  = Signal(reset_less=True)
 
-        # TODO understand what happens if lmfc_cycles is not a power of 2 ???
+        # TODO make sure that lmfc_cycles is always a power of 2
         print('lmfc_cycles', lmfc_cycles, 2**len(self.count))
         # # #
 
@@ -162,7 +172,7 @@ class LiteJESD204BCoreTX(Module):
             )
 
         # LMFC
-        lmfc = LMFC(32, jesd_settings, load=(1 + 4)) # jref + ebuf latency
+        lmfc = LMFC(jesd_settings, load=(1 + 4)) # jref + ebuf latency
         lmfc = ClockDomainsRenamer("jesd")(lmfc)
         self.submodules.lmfc = lmfc
         self.sync.jesd += lmfc.jref.eq(self.jref)
