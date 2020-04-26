@@ -14,20 +14,29 @@
 [![](https://travis-ci.com/enjoy-digital/litejesd204b.svg?branch=master)](https://travis-ci.com/enjoy-digital/litejesd204b) ![License](https://img.shields.io/badge/License-BSD%202--Clause-orange.svg)
 
 # Fork
-the goal is to understand the limitations of this library and make it work with an AD9174 DAC.
+Most changes in this fork are related to how the JESD parameters are handled. I introduced a new [`JESD204BSettings()`](litejesd204b/common.py) class which manages all configurable parameters of this library.
 
+Otherwise the goal is to understand the limitations of this library and make it work with an AD9174 DAC.
+
+__Lessons learned so far__
+
+  * No re-configuration during run-time
   * `F` must be 1, 2 or 4
   * There are limitations on `N` and `NP` such that 4 bytes are fed into the GTX every cycle (all 12 bit modes of the AD9174 are out)
-  * JREF clock must be LMFC clock divided by an integer
+  * The JREF clock, providing an edge to synchronize multiple devices, must be equal to the LMFC clock divided by an __integer__
+  * Being familiar with Litescope, Chipscope or another internal logic analyzer is absolutely necessary for board bring up
 
 ## Testing
 [Results](https://docs.google.com/spreadsheets/d/1F6s6cVM1Lo6IOUgZoq9xm0ueGYkePZFeD96N0-kPR9o/edit?usp=sharing) of JESD modes tested so far on hardware. There are comments in the `Tested OK` column.
 
-Hardware used:
+__Hardware used__
   * AD9174-FMC-EBZ
   * VC707
   * External 5.12 GHz sample clock
+  * 
+[litex project for testing](https://github.com/yetifrisstlama/litex_test_project/tree/master/vc707_gt_test)
 
+[python worksheet with testing procedure](https://github.com/yetifrisstlama/litex_test_project/blob/master/vc707_gt_test/spi/setup2.ipynb)
 
 
 
