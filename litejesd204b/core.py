@@ -146,9 +146,11 @@ class LMFC(Module):
 
 class LiteJESD204BCoreTX(Module):
     def __init__(self, phys, jesd_settings):
+        self.phy_reset  = Signal()
         self.enable  = Signal()
         self.jsync   = Signal()
         self.jref    = Signal()
+        self.phy_ready   = Signal()
         self.ready   = Signal()
 
         self.stpl_enable = Signal()
@@ -192,6 +194,12 @@ class LiteJESD204BCoreTX(Module):
             else:
                 phy_cd = "tx"
 
+            self.specials += MultiReg(
+                self.phy_reset,
+                phy.transmitter.init.restart,
+                phy_cd
+            )
+
             cdc = LiteJESD204BTXCDC(phy, phy_cd)
             setattr(self.submodules, "cdc"+str(n), cdc)
 
@@ -215,7 +223,10 @@ class LiteJESD204BCoreTX(Module):
                 cdc.source.connect(phy.sink)
             ]
 
-        self.sync.jesd += self.ready.eq(reduce(and_, [link.ready for link in links]))
+        self.comb += [
+            self.phy_ready.eq(reduce(and_, [phy.transmitter.init.done for phy in phys])),
+            self.ready.eq(reduce(and_, [link.ready for link in links]))
+        ]
 
     def register_jsync(self, jsync):
         self.jsync_registered = True
@@ -359,17 +370,25 @@ class LiteJESD204BCoreRX(Module):
 class LiteJESD204BCoreControl(Module, AutoCSR):
     def __init__(self, core):
         self.control = CSRStorage(fields=[
+            CSRField("phy_reset", size=1, values=[
+                ("``0b0``", "GTX PHY running."),
+                ("``0b1``", "GTX PHY held in reset.")
+            ]),
             CSRField("enable", size=1, values=[
                 ("``0b0``", "JESD core disabled."),
                 ("``0b1``", "JESD core enabled.")
             ])
         ])
         self.status = CSRStatus(fields=[
-            CSRField("ready", size=1, offset=0, values=[
+            CSRField("phy_ready", size=1, offset=0, values=[
+                ("``0b0``", "All GTX PHYs are initialized."),
+                ("``0b1``", "At least one GTX PHY is not initialized.")
+            ]),
+            CSRField("ready", size=1, offset=1, values=[
                 ("``0b0``", "JESD core not ready, all links are not synchronized."),
                 ("``0b1``", "JESD core ready, all links are synchronized.")
             ]),
-            CSRField("sync_n",    size=1, offset=1, description="JESD ``SYNC~`` status."),
+            CSRField("sync_n",    size=1, offset=2, description="JESD ``SYNC~`` status."),
             CSRField("skew_fifo", size=8, offset=8, description="JESD Skew FIFO level (``RX only``)."),
         ])
         self.jsync_errors = CSRStatus(32)
@@ -398,14 +417,17 @@ class LiteJESD204BCoreControl(Module, AutoCSR):
             )
         ]
 
+        self.comb += core.phy_reset.eq(self.control.fields.phy_reset)
+
         self.specials += [
-            MultiReg(self.control.fields.enable,      core.enable,      "jesd"),
-            MultiReg(self.stpl_enable.storage,        core.stpl_enable, "jesd"),
-            MultiReg(self.lmfc.fields.load_on_sysref, core.lmfc.load,   "jesd"),
-            MultiReg(core.stpl.errors, self.stpl_errors.status,   "sys"),
-            MultiReg(core.ready,       self.status.fields.ready,  "sys"),
-            MultiReg(core.jsync,       self.status.fields.sync_n, "sys"),
-            MultiReg(jsync_errors,     self.jsync_errors.status,  "sys"),
+            MultiReg(self.control.fields.enable, core.enable, "jesd"),
+            MultiReg(self.stpl_enable.storage, core.stpl_enable, "jesd"),
+            MultiReg(self.lmfc.fields.load_on_sysref, core.lmfc.load, "jesd"),
+            MultiReg(core.stpl.errors, self.stpl_errors.status, "sys"),
+            MultiReg(core.phy_ready, self.status.fields.phy_ready, "sys"),
+            MultiReg(core.ready, self.status.fields.ready, "sys"),
+            MultiReg(core.jsync, self.status.fields.sync_n, "sys"),
+            MultiReg(jsync_errors, self.jsync_errors.status, "sys"),
         ]
         if hasattr(core, "skew_fifos"):
             self.specials += MultiReg(core.skew_fifos[0].level, self.status.fields.skew_fifo)
