@@ -19,13 +19,8 @@ class LiteJESD204BTransportTX(Module):
         """
         samples_per_clock = jesd_settings.S * jesd_settings.FR_CLK
 
-        # width of the application layer interface providing the sample data
-        # for one converter
-        converter_data_width = jesd_settings.N * samples_per_clock
-
         # Endpoints
-        self.sink = Record([("converter"+str(i), converter_data_width)
-            for i in range(jesd_settings.M)])
+        self.sink = Record(jesd_settings.get_dsp_layout())
         self.source = Record([("lane"+str(i), jesd_settings.LINK_DW)
             for i in range(jesd_settings.L)])
 
@@ -150,22 +145,17 @@ class LiteJESD204BSTPLGenerator(Module):
     """Simple Transport Layer Pattern Generator
     cf section 5.1.6.2
     """
-    def __init__(self, jesd_settings, random=True):
-        samples_per_clock = jesd_settings.S * jesd_settings.FR_CLK
-        converter_data_width = jesd_settings.N * samples_per_clock
-
-        self.source = Record([("converter"+str(i), converter_data_width)
-            for i in range(jesd_settings.M)])
+    def __init__(self, settings, random=True):
+        self.source = Record(settings.get_dsp_layout())
         self.errors = Signal(32) # unused
 
         # # #
 
-        for i in range(jesd_settings.M):
-            converter = getattr(self.source, "converter"+str(i))
-            for j in range(samples_per_clock):
-                data = seed_to_data((i << 8) | j%jesd_settings.S, random)
-                self.comb += converter[j*jesd_settings.N:
-                                       (j+1)*jesd_settings.N].eq(data)
+        for m, (converter, _) in enumerate(self.source.iter_flat()):
+            for s in range(settings.S * settings.FR_CLK):
+                data = seed_to_data((m << 8) | s, random)
+                self.comb += \
+                    converter[s * settings.N: (s + 1) * settings.N].eq(data)
 
 # STPL Checker (RX) --------------------------------------------------------------------------------
 

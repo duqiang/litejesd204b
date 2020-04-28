@@ -26,15 +26,15 @@ __Lessons learned so far__
   * That's because 4 bytes need to be fed into the GTX every cycle (all 12 bit modes of the AD9174 are out)
   * The JREF clock, providing an edge to synchronize multiple devices, must be equal to the LMFC clock divided by an __integer__
   * Being familiar with Litescope, Chipscope or another internal logic analyzer is absolutely necessary for board bring up
-  * For 8 lanes at 12 Gbps line-rate, initialization is not reliable. This I could narrow down to the fact that my GTX PHY is never actually reset during the init sequence. Reseting it makes it reliable. Need to implement that.
+  * The GTX PHY needs a reset, __after__ bringing up all external clocks
 
 ## Testing
-[Results](https://docs.google.com/spreadsheets/d/1F6s6cVM1Lo6IOUgZoq9xm0ueGYkePZFeD96N0-kPR9o/edit?usp=sharing) of JESD modes tested so far on hardware. There are comments in the `Tested OK` column.
+[Results](https://docs.google.com/spreadsheets/d/1F6s6cVM1Lo6IOUgZoq9xm0ueGYkePZFeD96N0-kPR9o/edit?usp=sharing) of JESD modes tested so far on hardware. All 16 bit modes work reliably. Tested at up to 12.8 Gbps lane rate with 8 lanes. There are comments in the `Tested OK` column.
 
 __Hardware used__
   * AD9174-FMC-EBZ
   * VC707
-  * External 5.12 GHz sample clock
+  * External `f_DAC = 5.12 GHz` sample clock
 
 [litex project for testing](https://github.com/yetifrisstlama/litex_test_project/tree/master/vc707_gt_test)
 

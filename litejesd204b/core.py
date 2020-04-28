@@ -146,7 +146,6 @@ class LMFC(Module):
 
 class LiteJESD204BCoreTX(Module):
     def __init__(self, phys, jesd_settings):
-        self.phy_reset  = Signal()
         self.enable  = Signal()
         self.jsync   = Signal()
         self.jref    = Signal()
@@ -155,9 +154,7 @@ class LiteJESD204BCoreTX(Module):
 
         self.stpl_enable = Signal()
 
-        cw = jesd_settings.FR_CLK * jesd_settings.S * jesd_settings.N
-        self.sink = Record([("converter"+str(i), cw)
-            for i in range(jesd_settings.M)])
+        self.sink = Record(jesd_settings.get_dsp_layout())
 
         # # #
 
@@ -193,12 +190,6 @@ class LiteJESD204BCoreTX(Module):
                 phy_cd = phy_name + "_tx"
             else:
                 phy_cd = "tx"
-
-            self.specials += MultiReg(
-                self.phy_reset,
-                phy.transmitter.init.restart,
-                phy_cd
-            )
 
             cdc = LiteJESD204BTXCDC(phy, phy_cd)
             setattr(self.submodules, "cdc"+str(n), cdc)
@@ -368,23 +359,23 @@ class LiteJESD204BCoreRX(Module):
 # Core Control ----------------------------------------------------------------------------------
 
 class LiteJESD204BCoreControl(Module, AutoCSR):
-    def __init__(self, core):
+    def __init__(self, core, phys=None):
         self.control = CSRStorage(fields=[
-            CSRField("phy_reset", size=1, values=[
+            CSRField("phys_reset", size=1, offset=0, values=[
                 ("``0b0``", "GTX PHY running."),
                 ("``0b1``", "GTX PHY held in reset.")
             ]),
-            CSRField("enable", size=1, values=[
+            CSRField("links_enable", size=1, offset=1, values=[
                 ("``0b0``", "JESD core disabled."),
                 ("``0b1``", "JESD core enabled.")
             ])
         ])
         self.status = CSRStatus(fields=[
-            CSRField("phy_ready", size=1, offset=0, values=[
-                ("``0b0``", "All GTX PHYs are initialized."),
-                ("``0b1``", "At least one GTX PHY is not initialized.")
+            CSRField("phys_ready", size=1, offset=0, values=[
+                ("``0b0``", "At least one GTX PHY is not initialized."),
+                ("``0b1``", "All GTX PHYs are initialized."),
             ]),
-            CSRField("ready", size=1, offset=1, values=[
+            CSRField("links_ready", size=1, offset=1, values=[
                 ("``0b0``", "JESD core not ready, all links are not synchronized."),
                 ("``0b1``", "JESD core ready, all links are synchronized.")
             ]),
@@ -407,7 +398,7 @@ class LiteJESD204BCoreControl(Module, AutoCSR):
 
         # # #
 
-        # Count jsync negative edges (errors)
+        # Count jsync negative edges (link errors)
         jsync_errors = Signal(32)
         jsync_d = Signal()
         self.sync.jesd += [
@@ -417,15 +408,23 @@ class LiteJESD204BCoreControl(Module, AutoCSR):
             )
         ]
 
-        self.comb += core.phy_reset.eq(self.control.fields.phy_reset)
+        # Reset and ready signals for each PHY
+        if phys is not None:
+            dones = []
+            for phy in phys:
+                p = phy.transmitter.init
+                # everything in phy.init is in `sys` clock domain
+                dones.append(p.done)
+                self.comb += \
+                    p.restart.eq(self.control.fields.phys_reset)
+            self.comb += self.status.fields.phys_ready.eq(reduce(and_, dones))
 
         self.specials += [
-            MultiReg(self.control.fields.enable, core.enable, "jesd"),
+            MultiReg(self.control.fields.links_enable, core.enable, "jesd"),
             MultiReg(self.stpl_enable.storage, core.stpl_enable, "jesd"),
             MultiReg(self.lmfc.fields.load_on_sysref, core.lmfc.load, "jesd"),
             MultiReg(core.stpl.errors, self.stpl_errors.status, "sys"),
-            MultiReg(core.phy_ready, self.status.fields.phy_ready, "sys"),
-            MultiReg(core.ready, self.status.fields.ready, "sys"),
+            MultiReg(core.ready, self.status.fields.links_ready, "sys"),
             MultiReg(core.jsync, self.status.fields.sync_n, "sys"),
             MultiReg(jsync_errors, self.jsync_errors.status, "sys"),
         ]

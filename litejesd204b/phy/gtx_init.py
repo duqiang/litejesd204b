@@ -46,14 +46,15 @@ class GTXInit(Module):
 
         # After configuration, transceiver resets have to stay low for
         # at least 500ns (see AR43482)
-        startup_cycles = ceil(5000*sys_clk_freq/1000000000)
+        startup_cycles = ceil(500*sys_clk_freq/1000000000)
         startup_timer = WaitTimer(startup_cycles)
         self.submodules += startup_timer
 
         startup_fsm = ResetInserter()(FSM(reset_state="RESET_ALL"))
         self.submodules.startup_fsm = startup_fsm
 
-        ready_timer = WaitTimer(10*sys_clk_freq//1000)
+        # 1 ms watchdog, reset the phy if not ready
+        ready_timer = WaitTimer(1*sys_clk_freq//1000)
         self.submodules += ready_timer
         self.comb += [
             ready_timer.wait.eq(~self.done & ~startup_fsm.reset),
@@ -118,6 +119,7 @@ class GTXInit(Module):
             If(Xxphaligndone_rising, NextState("READY"))
         )
         startup_fsm.act("READY",
+            # TODO check status of PHY and drop out of READY on error
             Xxuserrdy.eq(1),
             self.done.eq(1)
         )

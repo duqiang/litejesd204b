@@ -139,6 +139,10 @@ class JESD204BSettings():
             val += 1
         return val
 
+    def get_dsp_layout(self):
+        cw = self.FR_CLK * self.S * self.N
+        return [("converter" + str(m), cw) for m in range(self.M)]
+
     def __getattr__(self, name):
         if name in JESD204BSettings.FIELDS:
             return self.get_field(name)
