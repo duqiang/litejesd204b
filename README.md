@@ -4,6 +4,7 @@
                            / /__/ / __/ -_) // / _/_\ \/ // / __// // /_  _/ _  |
                           /____/_/\__/\__/\___/___/___/____/____/\___/ /_//____/
 
+                                     Copyright      2020 / M. Betz
                                      Copyright 2016-2020 / EnjoyDigital
                                      Copyright 2016-2018 / M-Labs Ltd
 
@@ -12,6 +13,33 @@
 ```
 
 [![](https://travis-ci.com/enjoy-digital/litejesd204b.svg?branch=master)](https://travis-ci.com/enjoy-digital/litejesd204b) ![License](https://img.shields.io/badge/License-BSD%202--Clause-orange.svg)
+
+# Fork
+Most changes in this fork are related to how the JESD parameters are handled. I introduced a new [`JESD204BSettings()`](litejesd204b/common.py) class which manages all configurable parameters of this library.
+
+Otherwise the goal is to understand the limitations and make it work with an AD9174 DAC.
+
+__Lessons learned so far__
+
+  * No re-configuration during run-time
+  * `F` must be 1, 2 or 4
+  * That's because 4 bytes need to be fed into the GTX every cycle (all 12 bit modes of the AD9174 are out)
+  * The JREF clock, providing an edge to synchronize multiple devices, must be equal to the LMFC clock divided by an __integer__
+  * Being familiar with Litescope, Chipscope or another internal logic analyzer is absolutely necessary for board bring up
+  * The GTX PHY needs a reset, __after__ bringing up all external clocks
+
+## Testing
+[Results](https://docs.google.com/spreadsheets/d/1F6s6cVM1Lo6IOUgZoq9xm0ueGYkePZFeD96N0-kPR9o/edit?usp=sharing) of JESD modes tested so far on hardware. All 16 bit modes work reliably. Tested at up to 12.8 Gbps lane rate with 8 lanes. There are comments in the `Tested OK` column.
+
+__Hardware used__
+  * AD9174-FMC-EBZ
+  * VC707
+  * External `f_DAC = 5.12 GHz` sample clock
+
+[litex project for testing](https://github.com/yetifrisstlama/litex_test_project/tree/master/vc707_gt_test)
+
+[python worksheet with testing procedure](https://github.com/yetifrisstlama/litex_test_project/blob/master/vc707_gt_test/spi/setup2.ipynb)
+
 
 
 [> Intro

@@ -35,7 +35,7 @@ class LiteJESD204BTXCDC(Module):
         use_ebuf = (len(phy.sink.data) == 32)
 
         if use_ebuf:
-            ebuf = ElasticBuffer(len(phy.sink.data) + len(phy.source.ctrl), 4, "jesd", phy_cd)
+            ebuf = ElasticBuffer(len(phy.sink.data) + len(phy.sink.ctrl), 4, "jesd", phy_cd)
             self.submodules.ebuf = ebuf
             self.comb += [
                 sink.ready.eq(1),
@@ -102,52 +102,72 @@ class LiteJESD204BRXCDC(Module):
 # Local Multiframe Clock ---------------------------------------------------------------------------
 
 class LMFC(Module):
-    def __init__(self, lmfc_cycles, load=0):
-        load = (lmfc_cycles + load)%lmfc_cycles
+    def __init__(self, jesd_settings, load=0):
+        '''
+        clock divider to derive the local multi-frame clock (LMFC)
+        from the jesd_clk.
+        It uses the jref input to periodically synchronize
+        the divider with the LMFC in the peripheral.
+        Hence jref must be a divided version of LMFC,
+        provided to FPGA and peripheral
+
+        `load` defines a local phase offset in jesd_clk cycles
+        '''
+        # jesd clock cycles / multiframe
+        lmfc_cycles = int(jesd_settings.K // jesd_settings.FR_CLK)
+        load = load % lmfc_cycles
         assert load >= 0
         self.load  = Signal(max=lmfc_cycles, reset=load)
         self.jref  = Signal()
         self.count = Signal(max=lmfc_cycles, reset_less=True)
         self.zero  = Signal(reset_less=True)
 
+        # TODO make sure that lmfc_cycles is always a power of 2
+        print('lmfc_cycles', lmfc_cycles, 2**len(self.count))
         # # #
 
         _jref   = Signal(reset_less=True)
         _jref_d = Signal(reset_less=True)
+        self.is_load = Signal()
         self.sync += [
             _jref.eq(self.jref),
             _jref_d.eq(_jref),
-            If(_jref & ~_jref_d,
+            If(self.is_load,
+                # reset count on posedge jref
                 self.count.eq(self.load)
             ).Else(
+                # count jesd clock cycles
                 self.count.eq(self.count + 1)
             )
         ]
-        self.comb += self.zero.eq(self.count == 0)
+        self.comb += [
+            self.zero.eq(self.count == 0),
+            self.is_load.eq(_jref & ~_jref_d)
+        ]
 
 # Core TX ------------------------------------------------------------------------------------------
 
 class LiteJESD204BCoreTX(Module):
-    def __init__(self, phys, jesd_settings, converter_data_width):
+    def __init__(self, phys, jesd_settings):
         self.enable  = Signal()
         self.jsync   = Signal()
         self.jref    = Signal()
+        self.phy_ready   = Signal()
         self.ready   = Signal()
 
         self.stpl_enable = Signal()
 
-        self.sink = Record([("converter"+str(i), converter_data_width)
-            for i in range(jesd_settings.nconverters)])
+        self.sink = Record(jesd_settings.get_dsp_layout())
 
         # # #
 
         # Transport layer
-        transport = LiteJESD204BTransportTX(jesd_settings, converter_data_width)
+        transport = LiteJESD204BTransportTX(jesd_settings)
         transport = ClockDomainsRenamer("jesd")(transport)
         self.submodules.transport = transport
 
         # STPL
-        stpl = LiteJESD204BSTPLGenerator(jesd_settings, converter_data_width)
+        stpl = LiteJESD204BSTPLGenerator(jesd_settings)
         stpl = ClockDomainsRenamer("jesd")(stpl)
         self.submodules.stpl = stpl
         self.comb += \
@@ -158,23 +178,28 @@ class LiteJESD204BCoreTX(Module):
             )
 
         # LMFC
-        lmfc = LMFC(jesd_settings.lmfc_cycles, load=(1 + 4)) # jref + ebuf latency
+        lmfc = LMFC(jesd_settings, load=(1 + 4)) # jref + ebuf latency
         lmfc = ClockDomainsRenamer("jesd")(lmfc)
         self.submodules.lmfc = lmfc
         self.sync.jesd += lmfc.jref.eq(self.jref)
 
         # Links
         self.links = links = []
-        for n, (phy, lane) in enumerate(zip(phys, transport.source.flatten())):
+        lanes = transport.source.flatten()
+        for n, (phy, lane) in enumerate(zip(phys, lanes)):
             phy_name = "jesd_phy{}".format(n if not hasattr(phy, "n") else phy.n)
-            phy_cd   = phy_name + "_tx"
+            setattr(self.submodules, phy_name, phy)
+            if len(lanes) > 1:
+                phy_cd = phy_name + "_tx"
+            else:
+                phy_cd = "tx"
 
             cdc = LiteJESD204BTXCDC(phy, phy_cd)
             setattr(self.submodules, "cdc"+str(n), cdc)
 
-            link = LiteJESD204BLinkTX(32, jesd_settings, n)
+            link = LiteJESD204BLinkTX(jesd_settings, n)
             link = ClockDomainsRenamer("jesd")(link)
-            self.submodules += link
+            setattr(self.submodules, 'link{:d}'.format(n), link)
             links.append(link)
             self.comb += [
                 link.reset.eq(~self.enable),
@@ -192,7 +217,10 @@ class LiteJESD204BCoreTX(Module):
                 cdc.source.connect(phy.sink)
             ]
 
-        self.sync.jesd += self.ready.eq(reduce(and_, [link.ready for link in links]))
+        self.comb += [
+            self.phy_ready.eq(reduce(and_, [phy.transmitter.init.done for phy in phys])),
+            self.ready.eq(reduce(and_, [link.ready for link in links]))
+        ]
 
     def register_jsync(self, jsync):
         self.jsync_registered = True
@@ -206,6 +234,10 @@ class LiteJESD204BCoreTX(Module):
         self.specials += MultiReg(_jsync, self.jsync, "jesd")
 
     def register_jref(self, jref):
+        '''
+        watch out when setting up the hmc7044 clock dividers.
+        jref must be an integer divison of the LMFC!
+        '''
         self.jref_registered = True
         if isinstance(jref, Signal):
             self.comb += self.jref.eq(jref)
@@ -221,7 +253,7 @@ class LiteJESD204BCoreTX(Module):
 # Core RX ------------------------------------------------------------------------------------------
 
 class LiteJESD204BCoreRX(Module):
-    def __init__(self, phys, jesd_settings, converter_data_width, ilas_check=True):
+    def __init__(self, phys, jesd_settings, ilas_check=True):
         self.enable  = Signal()
         self.jsync   = Signal()
         self.jref    = Signal()
@@ -229,18 +261,18 @@ class LiteJESD204BCoreRX(Module):
 
         self.stpl_enable = Signal()
 
-        self.source = Record([("converter"+str(i), converter_data_width)
-            for i in range(jesd_settings.nconverters)])
+        self.source = Record([("converter"+str(i), jesd_settings.N * jesd_settings.S)
+            for i in range(jesd_settings.M)])
 
         # # #
 
         # Transport Layer
-        transport = LiteJESD204BTransportRX(jesd_settings, converter_data_width)
+        transport = LiteJESD204BTransportRX(jesd_settings)
         transport = ClockDomainsRenamer("jesd")(transport)
         self.submodules.transport = transport
 
         # STPL
-        stpl = LiteJESD204BSTPLChecker(jesd_settings, converter_data_width)
+        stpl = LiteJESD204BSTPLChecker(jesd_settings, jesd_settings.N * jesd_settings.S)
         stpl = ClockDomainsRenamer("jesd")(stpl)
         self.submodules.stpl = stpl
         self.comb += \
@@ -251,7 +283,7 @@ class LiteJESD204BCoreRX(Module):
             )
 
         # LMFC
-        lmfc = LMFC(jesd_settings.lmfc_cycles, load=-(1 + 4)) # jref + ebuf latency
+        lmfc = LMFC(32, jesd_settings, load=-(1 + 4)) # jref + ebuf latency
         lmfc = ClockDomainsRenamer("jesd")(lmfc)
         self.submodules.lmfc = lmfc
         self.sync.jesd += lmfc.jref.eq(self.jref)
@@ -330,21 +362,30 @@ class LiteJESD204BCoreRX(Module):
 # Core Control ----------------------------------------------------------------------------------
 
 class LiteJESD204BCoreControl(Module, AutoCSR):
-    def __init__(self, core, sys_clk_freq):
+    def __init__(self, core, phys=None):
         self.control = CSRStorage(fields=[
-            CSRField("enable", size=1, values=[
+            CSRField("phys_reset", size=1, offset=0, values=[
+                ("``0b0``", "GTX PHY running."),
+                ("``0b1``", "GTX PHY held in reset.")
+            ]),
+            CSRField("links_enable", size=1, offset=1, values=[
                 ("``0b0``", "JESD core disabled."),
                 ("``0b1``", "JESD core enabled.")
             ])
         ])
         self.status = CSRStatus(fields=[
-            CSRField("ready", size=1, offset=0, values=[
+            CSRField("phys_ready", size=1, offset=0, values=[
+                ("``0b0``", "At least one GTX PHY is not initialized."),
+                ("``0b1``", "All GTX PHYs are initialized."),
+            ]),
+            CSRField("links_ready", size=1, offset=1, values=[
                 ("``0b0``", "JESD core not ready, all links are not synchronized."),
                 ("``0b1``", "JESD core ready, all links are synchronized.")
             ]),
-            CSRField("sync_n",    size=1, offset=1, description="JESD ``SYNC~`` status."),
+            CSRField("sync_n",    size=1, offset=2, description="JESD ``SYNC~`` status."),
             CSRField("skew_fifo", size=8, offset=8, description="JESD Skew FIFO level (``RX only``)."),
         ])
+        self.jsync_errors = CSRStatus(32)
         self.stpl_enable = CSRStorage(fields=[
             CSRField("enable", size=1, offset=0, values=[
                 ("``0b0``", "STPL test disabled."),
@@ -360,13 +401,35 @@ class LiteJESD204BCoreControl(Module, AutoCSR):
 
         # # #
 
+        # Count jsync negative edges (link errors)
+        jsync_errors = Signal(32)
+        jsync_d = Signal()
+        self.sync.jesd += [
+            jsync_d.eq(core.jsync),
+            If(jsync_d & ~core.jsync,
+                jsync_errors.eq(jsync_errors + 1)
+            )
+        ]
+
+        # Reset and ready signals for each PHY
+        if phys is not None:
+            dones = []
+            for phy in phys:
+                p = phy.transmitter.init
+                # everything in phy.init is in `sys` clock domain
+                dones.append(p.done)
+                self.comb += \
+                    p.restart.eq(self.control.fields.phys_reset)
+            self.comb += self.status.fields.phys_ready.eq(reduce(and_, dones))
+
         self.specials += [
-            MultiReg(self.control.fields.enable,      core.enable,      "jesd"),
-            MultiReg(self.stpl_enable.storage,        core.stpl_enable, "jesd"),
-            MultiReg(self.lmfc.fields.load_on_sysref, core.lmfc.load,   "jesd"),
-            MultiReg(core.stpl.errors, self.stpl_errors.status,   "sys"),
-            MultiReg(core.ready,       self.status.fields.ready,  "sys"),
-            MultiReg(core.jsync,       self.status.fields.sync_n, "sys"),
+            MultiReg(self.control.fields.links_enable, core.enable, "jesd"),
+            MultiReg(self.stpl_enable.storage, core.stpl_enable, "jesd"),
+            MultiReg(self.lmfc.fields.load_on_sysref, core.lmfc.load, "jesd"),
+            MultiReg(core.stpl.errors, self.stpl_errors.status, "sys"),
+            MultiReg(core.ready, self.status.fields.links_ready, "sys"),
+            MultiReg(core.jsync, self.status.fields.sync_n, "sys"),
+            MultiReg(jsync_errors, self.jsync_errors.status, "sys"),
         ]
         if hasattr(core, "skew_fifos"):
             self.specials += MultiReg(core.skew_fifos[0].level, self.status.fields.skew_fifo)
