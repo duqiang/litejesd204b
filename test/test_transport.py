@@ -18,12 +18,13 @@ from test.model.transport import samples_to_lanes, lanes_to_samples
 
 class TestTransport(unittest.TestCase):
     def transport_tx_test(self, nlanes, nconverters, converter_data_width):
-        ps = JESD204BPhysicalSettings(l=nlanes, m=nconverters, n=16, np=16)
-        ts = JESD204BTransportSettings(f=2, s=1, k=16, cs=1)
-        jesd_settings = JESD204BSettings(ps, ts, did=0x5a, bid=0x5)
+        jesd_settings = JESD204BSettings(
+            L=nlanes, M=nconverters, N=16, NP=16,
+            F=2, S=1, K=16, CS=1, DID=0X5A, BID=0X5
+        )
+        jesd_settings.calc_fchk()
 
-        transport = LiteJESD204BTransportTX(jesd_settings,
-                                            converter_data_width)
+        transport = LiteJESD204BTransportTX(jesd_settings)
 
         input_samples = [[j+i*256 for j in range(16)] for i in range(nconverters)]
         reference_lanes = samples_to_lanes(samples_per_frame=1,
@@ -34,7 +35,7 @@ class TestTransport(unittest.TestCase):
 
         output_lanes = [[] for i in range(nlanes)]
 
-        octets_per_lane = jesd_settings.octets_per_lane
+        octets_per_lane = jesd_settings.F
         lane_data_width = len(transport.source.lane0)
 
         def generator(dut):

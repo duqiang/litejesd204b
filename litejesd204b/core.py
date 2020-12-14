@@ -235,7 +235,7 @@ class LiteJESD204BCoreTX(Module):
 
     def register_jref(self, jref):
         '''
-        watch out when setting up the hmc7044 clock dividers.
+        watch out when setting up external clock dividers.
         jref must be an integer divison of the LMFC!
         '''
         self.jref_registered = True

@@ -1,8 +1,8 @@
 #
 # This file is part of LiteJESD204B
 #
-# This file is Copyright (c) 2020 Michael Betz <michibetz@gmail.com>
-# This file is Copyright (c) 2016-2019 Florent Kermarrec <florent@enjoy-digital.fr>
+# Copyright (c) 2020 Michael Betz <michibetz@gmail.com>
+# Copyright (c) 2016-2019 Florent Kermarrec <florent@enjoy-digital.fr>
 # SPDX-License-Identifier: BSD-2-Clause
 
 from math import ceil
@@ -23,8 +23,8 @@ class JESD204BSettings():
     ''' Manage all JESD related configuration settings '''
     FIELDS = {
         # fld_name:  [octet index, bit offset, field width, isZeroBased]
-        "ADJCNT":    [1,  4, 4, False],  # Number of adjustment resolution steps to adjust DAC LMFC. Subclass 2 only.
-        "ADJDIR":    [2,  6, 1, False],  # Direction to adjust DAC LMFC 0: Advance, 1: Delay. Subclass 2 only.
+        "ADJCNT":    [1,  4, 4, False],  # Number of adjustment steps for LMFC. Subclass 2 only.
+        "ADJDIR":    [2,  6, 1, False],  # Direction to adjust LMFC 0: Advance, 1: Delay. Subclass 2 only.
         "BID":       [1,  0, 4, False],  # Bank ID
         "CF":        [10, 0, 5, False],  # No. of control words per frame duration per link
         "CS":        [7,  6, 2, False],  # No. of control bits / sample
@@ -38,7 +38,7 @@ class JESD204BSettings():
         "M":         [6,  0, 8, True ],  # No. of converters
         "N":         [7,  0, 5, True ],  # Converter resolution
         "NP":        [8,  0, 5, True ],  # Total no. of bits / sample
-        "PHADJ":     [2,  5, 1, False],  # Phase adjustment request to DAC Subclass 2 only
+        "PHADJ":     [2,  5, 1, False],  # Phase adjustment request Subclass 2 only
         "S":         [9,  0, 5, True ],  # No. of samples per converter per frame cycle
         "SCR":       [3,  7, 1, False],  # Scrambling enable
         "SUBCLASSV": [8,  5, 3, False],  # Device subclass version
@@ -89,7 +89,10 @@ class JESD204BSettings():
         # self.calc_fchk()
 
     def calc_fchk(self):
-        ''' needs to be called manually after all values have been set '''
+        '''
+        Calculated checksum field
+        needs to be called manually after all values have been set
+        '''
         if self.FCHK_OVER_OCTETS:
             val = sum(self.octets[:11])
         else:
@@ -104,6 +107,9 @@ class JESD204BSettings():
                 val += self.get_field(name)
         self.set_field('FCHK', val & 0xFF)
 
+        # How many jesd frames are processed in one clock cycle
+        self.FR_CLK = self.LINK_DW // 8 // self.F
+
         # --------------------
         #  Sanity checks
         # --------------------
@@ -116,8 +122,6 @@ class JESD204BSettings():
         if self.F not in (1, 2, 4):
             raise ValueError('Only F = 1, 2 or 4 is supported right now')
 
-        # How many jesd frames are processed in one clock cycle
-        self.FR_CLK = self.LINK_DW // 8 // self.F
 
     def set_field(self, name, val, encode=True):
         # print('setting:', name, val)
