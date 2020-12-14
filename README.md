@@ -12,7 +12,7 @@
                                         powered by Migen & LiteX
 ```
 
-[![](https://travis-ci.com/enjoy-digital/litejesd204b.svg?branch=master)](https://travis-ci.com/enjoy-digital/litejesd204b) ![License](https://img.shields.io/badge/License-BSD%202--Clause-orange.svg)
+[![](https://github.com/enjoy-digital/litejesd204b/workflows/ci/badge.svg)](https://github.com/enjoy-digital/litejesd204b/actions) ![License](https://img.shields.io/badge/License-BSD%202--Clause-orange.svg)
 
 # Fork
 Most changes in this fork are related to how the JESD parameters are handled. I introduced a new [`JESD204BSettings()`](litejesd204b/common.py) class which manages all configurable parameters of this library.
