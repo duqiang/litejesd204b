@@ -161,8 +161,7 @@ class Framer(Module):
 
 @ResetInserter()
 class Deframer(Module):
-    """Deframer
-    """
+    """Deframer"""
     def __init__(self, jesd_settings):
         data_width = jesd_settings.LINK_DW
         self.sink    = sink   = Record(link_layout(data_width))
@@ -204,12 +203,12 @@ class AlignInserter(Module):
 
         for i in range(data_width//8):
             self.comb += [
-                # last scrambled octet in a multiframe equals "A" control character
+                # Last scrambled octet in a multiframe equals "A" control character
                 If(sink.data[8*i:8*(i+1)] == control_characters["A"],
                     If(sink.multiframe_last[i],
                         source.ctrl[i].eq(1)
                     )
-                # last scrambled octet in a frame but not at the end of a
+                # Last scrambled octet in a frame but not at the end of a
                 # multiframe equals "F" control character
                 ).Elif(sink.data[8*i:8*(i+1)] == control_characters["F"],
                     If(sink.frame_last[i] & ~sink.multiframe_last[i],
@@ -230,7 +229,7 @@ class AlignReplacer(Module):
 
         # # #
 
-        # recopy scrambler data and set ctrl to 0
+        # Recopy scrambler data and set ctrl to 0
         self.comb += source.eq(sink)
         for i in range(data_width//8):
             self.comb += source.ctrl.eq(0)
@@ -278,8 +277,7 @@ class Aligner(Module):
 # Code Group Synchronization -----------------------------------------------------------------------
 
 class CGSGenerator(Module):
-    """Code Group Synchronization
-    """
+    """Code Group Synchronization"""
     def __init__(self, data_width):
         self.source = source = Record(link_layout(data_width))
 
@@ -294,8 +292,7 @@ class CGSGenerator(Module):
             ]
 
 class CGSChecker(Module):
-    """Code Group Synchronization
-    """
+    """Code Group Synchronization"""
     def __init__(self, data_width):
         self.sink  = sink  = Record(link_layout(data_width))
         self.valid = valid = Signal()
@@ -323,7 +320,7 @@ class ILAS:
     """
     def __init__(self, data_width, jesd_settings, with_counter=True):
 
-        # compute ILAS's octets
+        # Compute ILAS's octets
 
         octets_per_multiframe = jesd_settings.F * jesd_settings.K
 
@@ -341,7 +338,7 @@ class ILAS:
                 multiframe[2:2+len(jesd_settings.octets)] = jesd_settings.octets
             octets += multiframe
 
-        # pack ILAS's octets in a lookup table
+        # Pack ILAS's octets in a lookup table
 
         octets_per_clock = data_width//8
 
@@ -387,7 +384,7 @@ class ILASGenerator(ILAS, Module):
         ctrl_port = ctrl_lut.get_port(async_read=True)
         self.specials += ctrl_lut, ctrl_port
 
-        # stream data/ctrl from lookup tables
+        # Stream data/ctrl from lookup tables
         counter = Signal(max=len(self.data_words)+1)
         self.comb += [
             source.last.eq(counter == (len(self.data_words)-1)),
@@ -396,18 +393,18 @@ class ILASGenerator(ILAS, Module):
             source.data.eq(data_port.dat_r),
             source.ctrl.eq(ctrl_port.dat_r)
         ]
-        self.sync += \
+        self.sync += [
             If(counter != len(self.data_words),
                 counter.eq(counter + 1)
             )
+        ]
 
-        # done
+        # Done
         self.comb += self.done.eq(counter == len(self.data_words))
 
 
 class ILASStartChecker(Module):
-    """Code Group Synchronization
-    """
+    """Code Group Synchronization"""
     def __init__(self, data_width):
         self.sink  = sink  = Record(link_layout(data_width))
         self.valid = valid = Signal()
@@ -439,7 +436,7 @@ class ILASChecker(ILAS, Module):
 
         # # #
 
-        # detect start
+        # Detect start
         start =  ILASStartChecker(data_width)
         self.submodules.start = start
         self.comb += start.sink.eq(sink)
@@ -458,7 +455,7 @@ class ILASChecker(ILAS, Module):
         self.data = data_port.dat_r
         self.ctrl = ctrl_port.dat_r
 
-        # compare data/ctrl with lookup tables
+        # Compare data/ctrl with lookup tables
         counter = Signal(max=len(self.data_words)+1)
         self.comb += [
             data_port.adr.eq(counter),
@@ -479,7 +476,7 @@ class ILASChecker(ILAS, Module):
             )
         ]
 
-        # done
+        # Done
         self.comb += self.done.eq(counter == len(self.data_words))
 
 # Link TX ------------------------------------------------------------------------------------------
@@ -518,13 +515,12 @@ class LiteJESD204BLinkTXDapath(Module):
 
 @ResetInserter()
 class LiteJESD204BLinkTX(Module):
-    """Link TX layer
-    """
+    """Link TX layer"""
     def __init__(self, jesd_settings, n=0):
-        self.jsync     = Signal() # input
-        self.jref      = Signal() # input
-        self.lmfc_zero = Signal() # input
-        self.ready     = Signal() # output
+        self.jsync     = Signal() # Input
+        self.jref      = Signal() # Input
+        self.lmfc_zero = Signal() # Input
+        self.ready     = Signal() # Output
 
         self.sink   = sink   = Record([("data", jesd_settings.LINK_DW)])
         self.source = source = Record(link_layout(jesd_settings.LINK_DW))
@@ -547,7 +543,7 @@ class LiteJESD204BLinkTX(Module):
         self.comb += datapath.sink.eq(sink)
 
         # Sync
-        jsync_timer = WaitTimer(4) # distinguish errors reporting / re-synchronization requests.
+        jsync_timer = WaitTimer(4) # Distinguish errors reporting / re-synchronization requests.
         self.submodules += jsync_timer
         self.comb += jsync_timer.wait.eq(~self.jsync)
 
@@ -577,7 +573,7 @@ class LiteJESD204BLinkTX(Module):
             source.eq(datapath.source),
             If(jsync_timer.done,
                 NextState("SEND-CGS")
-            ),
+            )
         )
 
 # Link RX ------------------------------------------------------------------------------------------
@@ -613,14 +609,13 @@ class LiteJESD204BLinkRXDapath(Module):
 
 @ResetInserter()
 class LiteJESD204BLinkRX(Module):
-    """Link RX layer
-    """
+    """Link RX layer"""
     def __init__(self, jesd_settings, n=0, ilas_check=True):
-        self.jsync     = Signal() # output
-        self.jref      = Signal() # input
-        self.lmfc_zero = Signal() # input
-        self.ready     = Signal() # output
-        self.align     = Signal() # output
+        self.jsync     = Signal() # Output
+        self.jref      = Signal() # Input
+        self.lmfc_zero = Signal() # Input
+        self.ready     = Signal() # Output
+        self.align     = Signal() # Output
 
         self.sink   = sink   = Record(link_layout(jesd_settings.LINK_DW))
         self.source = source = Record([("data", jesd_settings.LINK_DW)])
