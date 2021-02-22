@@ -188,17 +188,15 @@ class GTXTransmitter(Module, AutoCSR):
     def __init__(self, pll, tx_pads, sys_clk_freq, polarity=0):
         self.config = CSRStorage(fields=[
           CSRField(
-            "tp_on",
-            description="Enable the GTX static test pattern generator"
-          ),
-          CSRField(
-            "prbs_mode",
-            description="Mode of the PRBS test pattern generator",
+            "tp_mode",
+            size=3,
+            description="Mode of the GTX test pattern generator",
             values=[
               ("0", "off"),
               ("1", "prbs7"),
               ("2", "prbs15"),
               ("3", "prbs31"),
+              ("4", "static TP"),
             ]
           ),
         ])
@@ -313,9 +311,9 @@ class GTXTransmitter(Module, AutoCSR):
         self.submodules.encoder = ClockDomainsRenamer("tx")(Encoder(nwords, True))
         self.submodules.prbs = ClockDomainsRenamer("tx")(PRBSTX(40, True))
         self.comb += [
-            self.prbs.config.eq(self.config.fields.prbs_mode),
+            self.prbs.config.eq(self.config.fields.tp_mode[:2]),
             self.prbs.i.eq(Cat(*[self.encoder.output[i] for i in range(nwords)])),
-            If(self.config.fields.tp_on,
+            If(self.config.fields.tp_mode[2],
                 # square wave @ linerate/40 for scope observation
                 txdata.eq(self.tp.storage[::-1])
             ).Else(
