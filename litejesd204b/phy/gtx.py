@@ -186,9 +186,23 @@ CLKIN +----> /M  +-->       Charge Pump         | +------------+->/2+--> CLKOUT
 
 class GTXTransmitter(Module, AutoCSR):
     def __init__(self, pll, tx_pads, sys_clk_freq, polarity=0):
-        self.prbs_config = Signal(2)
+        self.config = CSRStorage(fields=[
+          CSRField(
+            "tp_on",
+            description="Enable the GTX static test pattern generator"
+          ),
+          CSRField(
+            "prbs_mode",
+            description="Mode of the PRBS test pattern generator",
+            values=[
+              ("0", "off"),
+              ("1", "prbs7"),
+              ("2", "prbs15"),
+              ("3", "prbs31"),
+            ]
+          ),
+        ])
 
-        self.tp_on = CSRStorage()
         self.tp = CSRStorage(40, reset=0b1111111111111111111100000000000000000000)
 
         self.txdiffcttrl = CSRStorage(4, reset=0b1000)
@@ -299,9 +313,9 @@ class GTXTransmitter(Module, AutoCSR):
         self.submodules.encoder = ClockDomainsRenamer("tx")(Encoder(nwords, True))
         self.submodules.prbs = ClockDomainsRenamer("tx")(PRBSTX(40, True))
         self.comb += [
-            self.prbs.config.eq(self.prbs_config),
+            self.prbs.config.eq(self.config.fields.prbs_mode),
             self.prbs.i.eq(Cat(*[self.encoder.output[i] for i in range(nwords)])),
-            If(self.tp_on.storage,
+            If(self.config.fields.tp_on,
                 # square wave @ linerate/40 for scope observation
                 txdata.eq(self.tp.storage[::-1])
             ).Else(
