@@ -218,7 +218,7 @@ class LiteJESD204BCoreTX(Module):
             ]
 
         self.comb += [
-            self.phy_ready.eq(reduce(and_, [phy.transmitter.init.done for phy in phys])),
+            self.phy_ready.eq(reduce(and_, [phy.tx_init.done for phy in phys])),
             self.ready.eq(reduce(and_, [link.ready for link in links]))
         ]
 
@@ -415,7 +415,7 @@ class LiteJESD204BCoreControl(Module, AutoCSR):
         if phys is not None:
             dones = []
             for phy in phys:
-                p = phy.transmitter.init
+                p = phy.tx_init
                 # everything in phy.init is in `sys` clock domain
                 dones.append(p.done)
                 self.comb += \
